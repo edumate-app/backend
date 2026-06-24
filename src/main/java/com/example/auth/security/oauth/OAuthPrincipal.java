@@ -38,7 +38,7 @@ public class OAuthPrincipal implements OidcUser {
 
   @Override
   public String getName() {
-    return email;
+    return name;
   }
 
   // OidcUser (Google)
