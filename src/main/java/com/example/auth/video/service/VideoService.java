@@ -3,6 +3,7 @@ package com.example.auth.video.service;
 import com.example.auth.nlp.NlpClient;
 import com.example.auth.user.entity.AppUser;
 import com.example.auth.video.dto.LanguageDto;
+import com.example.auth.video.dto.TranscriptSegmentDto;
 import com.example.auth.video.entity.Video;
 import com.example.auth.video.entity.VideoType;
 import com.example.auth.video.repository.VideoRepository;
@@ -39,6 +40,10 @@ public class VideoService {
             .user(user)
             .build()
     );
+  }
+
+  public List<TranscriptSegmentDto> getTranscript(String video_id) {
+    return nlpClient.getTranscript(video_id);
   }
 
   private VideoType detectType(String url) {

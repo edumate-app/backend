@@ -1,8 +1,8 @@
 package com.example.auth.video.controller;
 
-import com.example.auth.nlp.NlpClient;
 import com.example.auth.user.entity.AppUser;
 import com.example.auth.video.dto.LanguageDto;
+import com.example.auth.video.dto.TranscriptSegmentDto;
 import com.example.auth.video.service.VideoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -24,5 +24,10 @@ public class VideoController {
   public void addVideo(@RequestParam String url,
                        @AuthenticationPrincipal AppUser user) {
     videoService.addVideo(url, user);
+  }
+
+  @GetMapping("/transcript")
+  public List<TranscriptSegmentDto> getTranscript(@RequestParam String video_id) {
+    return videoService.getTranscript(video_id);
   }
 }
