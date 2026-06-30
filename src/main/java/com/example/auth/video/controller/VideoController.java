@@ -1,6 +1,7 @@
 package com.example.auth.video.controller;
 
 import com.example.auth.user.entity.AppUser;
+import com.example.auth.video.dto.ImportResponse;
 import com.example.auth.video.dto.LanguageDto;
 import com.example.auth.video.dto.TranscriptSegmentDto;
 import com.example.auth.video.service.VideoService;
@@ -21,9 +22,9 @@ public class VideoController {
   }
 
   @PostMapping("/add")
-  public void addVideo(@RequestParam String url,
-                       @AuthenticationPrincipal AppUser user) {
-    videoService.addVideo(url, user);
+  public ImportResponse addVideo(@RequestParam String url,
+                                 @AuthenticationPrincipal AppUser user) {
+    return videoService.addVideo(url, user);
   }
 
   @GetMapping("/transcript")

@@ -2,6 +2,7 @@ package com.example.auth.video.service;
 
 import com.example.auth.nlp.NlpClient;
 import com.example.auth.user.entity.AppUser;
+import com.example.auth.video.dto.ImportResponse;
 import com.example.auth.video.dto.LanguageDto;
 import com.example.auth.video.dto.TranscriptSegmentDto;
 import com.example.auth.video.entity.Video;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -30,9 +32,9 @@ public class VideoService {
     return nlpClient.getAvailableLang(videoId);
   }
 
-  public void addVideo(String url, AppUser user) {
+  public ImportResponse addVideo(String url, AppUser user) {
     String videoId = extractVideoId(url);
-    videoRepository.save(
+    Video saved = videoRepository.save(
         Video.builder()
             .videoId(videoId)
             .thumbnailUrl("https://img.youtube.com/vi/" + videoId + "/hqdefault.jpg")
@@ -40,6 +42,8 @@ public class VideoService {
             .user(user)
             .build()
     );
+
+    return new ImportResponse(saved.getId());
   }
 
   public List<TranscriptSegmentDto> getTranscript(String video_id) {
