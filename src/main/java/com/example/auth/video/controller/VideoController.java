@@ -1,15 +1,14 @@
 package com.example.auth.video.controller;
 
 import com.example.auth.user.entity.AppUser;
-import com.example.auth.video.dto.ImportResponse;
-import com.example.auth.video.dto.LanguageDto;
-import com.example.auth.video.dto.TranscriptSegmentDto;
+import com.example.auth.video.dto.*;
 import com.example.auth.video.service.VideoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/video")
@@ -17,18 +16,19 @@ import java.util.List;
 public class VideoController {
   private final VideoService videoService;
   @PostMapping("/validation")
-  public List<LanguageDto> validation(@RequestParam String url) {
-    return videoService.getAvailableLang(url);
+  public List<LanguageDto> validation(@RequestParam String url,
+                                      @AuthenticationPrincipal AppUser user) {
+    return videoService.getAvailableLang(url, user);
   }
 
-  @PostMapping("/add")
-  public ImportResponse addVideo(@RequestParam String url,
+  @PostMapping("/import")
+  public ImportResponse addVideo(@RequestBody ImportRequest request,
                                  @AuthenticationPrincipal AppUser user) {
-    return videoService.addVideo(url, user);
+    return videoService.addVideo(request.url(), request.targetLang() , user);
   }
 
-  @GetMapping("/transcript")
-  public List<TranscriptSegmentDto> getTranscript(@RequestParam String video_id) {
-    return videoService.getTranscript(video_id);
+  @GetMapping("/transcript/{videoUUID}")
+  public TranscriptResponseDto getTranscript(@PathVariable UUID videoUUID) {
+    return videoService.getTranscript(videoUUID);
   }
 }

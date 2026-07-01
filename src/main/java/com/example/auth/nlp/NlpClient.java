@@ -19,12 +19,11 @@ public class NlpClient {
       .baseUrl("http://nlp-service:8000")
       .build();
 
-  public List<LanguageDto> getAvailableLang(String videoId) {
-    System.out.println("jebac cie huju");
+  public List<NlpLanguageDto> getAvailableLang(String videoId) {
     return webClient.get()
         .uri("/lang/{videoId}", videoId)
         .retrieve()
-        .bodyToMono(new ParameterizedTypeReference<List<LanguageDto>>() {})
+        .bodyToMono(new ParameterizedTypeReference<List<NlpLanguageDto>>() {})
         .block();
   }
 
