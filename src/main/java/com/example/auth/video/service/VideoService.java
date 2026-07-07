@@ -1,7 +1,7 @@
 package com.example.auth.video.service;
 
 import com.example.auth.nlp.NlpClient;
-import com.example.auth.nlp.NlpLanguageDto;
+import com.example.auth.nlp.dto.NlpLanguageDto;
 import com.example.auth.user.entity.AppUser;
 import com.example.auth.video.dto.ImportResponse;
 import com.example.auth.video.dto.LanguageDto;

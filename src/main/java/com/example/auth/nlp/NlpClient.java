@@ -1,6 +1,7 @@
 package com.example.auth.nlp;
 
-import com.example.auth.video.dto.LanguageDto;
+import com.example.auth.nlp.dto.NlpLanguageDto;
+import com.example.auth.nlp.dto.NlpTranscriptRequest;
 import com.example.auth.video.dto.TranscriptSegmentDto;
 import lombok.AllArgsConstructor;
 import org.springframework.core.ParameterizedTypeReference;
@@ -28,13 +29,11 @@ public class NlpClient {
   }
 
   public List<TranscriptSegmentDto> getTranscript(String videoId) {
-    Map<String, Object> body = new HashMap<>();
-    body.put("target_lang", "en");
-    body.put("native_lang", "pl");
+    NlpTranscriptRequest request = new NlpTranscriptRequest("en", "pl");
 
     return webClient.post()
         .uri("/transcript/{videoId}", videoId)
-        .bodyValue(body)
+        .bodyValue(request)
         .retrieve()
         .bodyToMono(new ParameterizedTypeReference<List<TranscriptSegmentDto>>() {})
         .block();
