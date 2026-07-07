@@ -25,6 +25,7 @@ public class AppUser implements UserDetails {
   private String email;
   private String password;
   private String avatarUrl;
+  private String nativeLang;
   @Enumerated(EnumType.STRING)
   private AuthProvider provider;
 
