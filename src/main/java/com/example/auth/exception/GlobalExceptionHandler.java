@@ -12,41 +12,22 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.time.Instant;
 
 @RestControllerAdvice
-@RequiredArgsConstructor
 public class GlobalExceptionHandler {
 
-  @ExceptionHandler(VideoNotFoundException.class)
-  public ResponseEntity<ErrorResponse> handleVideoNotFound(
-      VideoNotFoundException ex,
+
+  @ExceptionHandler(ApplicationException.class)
+  public ResponseEntity<ErrorResponse> handleApplicationException(
+      ApplicationException ex,
       HttpServletRequest request
   ) {
 
     return ResponseEntity
-        .status(HttpStatus.NOT_FOUND)
+        .status(ex.getStatus())
         .body(
             new ErrorResponse(
                 Instant.now(),
-                404,
-                "VIDEO_NOT_FOUND",
-                ex.getMessage(),
-                request.getRequestURI()
-            )
-        );
-  }
-
-  @ExceptionHandler(NativeLanguageNotSetException.class)
-  public ResponseEntity<ErrorResponse> handleNativeLanguage(
-      NativeLanguageNotSetException ex,
-      HttpServletRequest request
-  ) {
-
-    return ResponseEntity
-        .status(HttpStatus.BAD_REQUEST)
-        .body(
-            new ErrorResponse(
-                Instant.now(),
-                400,
-                "NATIVE_LANGUAGE_NOT_SET",
+                ex.getStatus().value(),
+                ex.getCode(),
                 ex.getMessage(),
                 request.getRequestURI()
             )
