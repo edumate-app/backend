@@ -1,5 +1,6 @@
 package com.example.auth.security.oauth;
 
+import com.example.auth.auth.exception.OAuthEmailNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
@@ -55,12 +56,12 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             .filter(e -> Boolean.TRUE.equals(e.get("primary")))
             .map(e -> (String) e.get("email"))
             .findFirst()
-            .orElse((String) emails.get(0).get("email"));
+            .orElse((String) emails.getFirst().get("email"));
       }
     } catch (Exception e) {
       System.out.println("Błąd pobierania emaila z GitHub: " + e.getMessage());
     }
 
-    return null;
+    throw new OAuthEmailNotFoundException();
   }
 }

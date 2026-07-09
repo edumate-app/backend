@@ -28,8 +28,7 @@ public class NlpClient {
         .block();
   }
 
-  public List<TranscriptSegmentDto> getTranscript(String videoId) {
-    NlpTranscriptRequest request = new NlpTranscriptRequest("en", "pl");
+  public List<TranscriptSegmentDto> getTranscript(String videoId, NlpTranscriptRequest request) {
 
     return webClient.post()
         .uri("/transcript/{videoId}", videoId)

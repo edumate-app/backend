@@ -4,6 +4,7 @@ import com.example.auth.auth.dto.AuthTokens;
 import com.example.auth.auth.dto.LoginRequest;
 import com.example.auth.auth.dto.RegisterRequest;
 import com.example.auth.auth.entity.RefreshToken;
+import com.example.auth.auth.exception.EmailAlreadyExistsException;
 import com.example.auth.security.jwt.JwtService;
 import com.example.auth.user.entity.AppUser;
 import com.example.auth.user.repository.UserRepository;
@@ -27,7 +28,7 @@ public class AuthService {
   public AuthTokens register(RegisterRequest request) {
 
     if (userRepository.existsByEmail(request.email())) {
-      throw new IllegalStateException("Email already in use");
+      throw new EmailAlreadyExistsException(request.email());
     }
 
     AppUser user = new AppUser();
