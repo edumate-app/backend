@@ -10,5 +10,6 @@ public record VideoDto(
     String title,
     String author,
     int duration,
-    Instant lastOpenedAt
+    Instant lastOpenedAt,
+    int lastPositionSeconds
 ) {}

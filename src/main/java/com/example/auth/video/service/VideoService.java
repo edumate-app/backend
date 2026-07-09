@@ -85,7 +85,7 @@ public class VideoService {
 
     String video_id = video.getVideoId();
     NlpTranscriptRequest request = new NlpTranscriptRequest(video.getTargetLang(), nativeLang);
-    return new TranscriptResponseDto(nlpClient.getTranscript(video_id, request), video_id);
+    return new TranscriptResponseDto(nlpClient.getTranscript(video_id, request), video_id, video.getLastPositionSeconds());
   }
 
   public List<VideoDto> getVideos (AppUser user) {
@@ -98,9 +98,20 @@ public class VideoService {
             video.getTitle(),
             video.getAuthor(),
             video.getDuration(),
-            video.getLastOpenedAt()
+            video.getLastOpenedAt(),
+            video.getLastPositionSeconds()
         ))
         .toList();
+  }
+
+  public void updatePosition(UUID videoId, int positionSeconds) {
+    System.out.println(videoId);
+    System.out.println(positionSeconds);
+    Video video = videoRepository.findById(videoId)
+        .orElseThrow(() -> new VideoNotFoundException(videoId));
+
+    video.updatePosition(positionSeconds);
+    videoRepository.save(video);
   }
 
   private String extractVideoId(String url) {
