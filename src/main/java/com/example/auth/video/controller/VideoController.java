@@ -31,4 +31,9 @@ public class VideoController {
   public TranscriptResponseDto getTranscript(@PathVariable UUID videoUUID) {
     return videoService.getTranscript(videoUUID);
   }
+
+  @GetMapping
+  public List<VideoDto> getVideos(@AuthenticationPrincipal AppUser user) {
+    return videoService.getVideos(user);
+  }
 }

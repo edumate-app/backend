@@ -3,6 +3,7 @@ package com.example.auth.video.service;
 import com.example.auth.nlp.NlpClient;
 import com.example.auth.nlp.dto.NlpLanguageDto;
 import com.example.auth.nlp.dto.NlpTranscriptRequest;
+import com.example.auth.video.dto.VideoDto;
 import com.example.auth.video.exception.InvalidVideoUrlException;
 import com.example.auth.video.exception.NativeLanguageNotSetException;
 import com.example.auth.video.exception.VideoNotFoundException;
@@ -80,6 +81,17 @@ public class VideoService {
     String video_id = video.getVideoId();
     NlpTranscriptRequest request = new NlpTranscriptRequest(video.getTargetLang(), nativeLang);
     return new TranscriptResponseDto(nlpClient.getTranscript(video_id, request), video_id);
+  }
+
+  public List<VideoDto> getVideos (AppUser user) {
+    return videoRepository.findAllByUser(user)
+        .stream()
+        .map(video -> new VideoDto(
+            video.getId(),
+            video.getTargetLang(),
+            video.getVideoId()
+        ))
+        .toList();
   }
 
   private VideoType detectType(String url) {

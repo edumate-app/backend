@@ -20,4 +20,6 @@ public interface VideoRepository extends JpaRepository<Video, UUID> {
       @Param("videoId") String videoId,
       @Param("user") AppUser user
   );
+
+  List<Video> findAllByUser(AppUser user);
 }
