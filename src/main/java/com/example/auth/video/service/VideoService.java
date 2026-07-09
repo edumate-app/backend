@@ -3,6 +3,7 @@ package com.example.auth.video.service;
 import com.example.auth.nlp.NlpClient;
 import com.example.auth.nlp.dto.NlpLanguageDto;
 import com.example.auth.nlp.dto.NlpTranscriptRequest;
+import com.example.auth.video.exception.InvalidVideoUrlException;
 import com.example.auth.video.exception.NativeLanguageNotSetException;
 import com.example.auth.video.exception.VideoNotFoundException;
 import com.example.auth.user.entity.AppUser;
@@ -95,10 +96,16 @@ public class VideoService {
 
     Matcher matcher = pattern.matcher(url);
 
-    if (matcher.find()) {
-      return matcher.group(1);
+    if (!matcher.find()) {
+      throw new InvalidVideoUrlException();
     }
 
-    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid YouTube URL");
+    String videoId = matcher.group(1);
+
+    if (videoId.length() != 11) {
+      throw new InvalidVideoUrlException();
+    }
+
+    return matcher.group(1);
   }
 }
