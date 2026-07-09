@@ -3,6 +3,7 @@ package com.example.auth.video.service;
 import com.example.auth.nlp.NlpClient;
 import com.example.auth.nlp.dto.NlpLanguageDto;
 import com.example.auth.nlp.dto.NlpTranscriptRequest;
+import com.example.auth.nlp.dto.VideoInfo;
 import com.example.auth.video.dto.VideoDto;
 import com.example.auth.video.exception.InvalidVideoUrlException;
 import com.example.auth.video.exception.NativeLanguageNotSetException;
@@ -12,7 +13,6 @@ import com.example.auth.video.dto.ImportResponse;
 import com.example.auth.video.dto.LanguageDto;
 import com.example.auth.video.dto.TranscriptResponseDto;
 import com.example.auth.video.entity.Video;
-import com.example.auth.video.entity.VideoType;
 import com.example.auth.video.repository.VideoRepository;
 import lombok.AllArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -53,14 +53,16 @@ public class VideoService {
         .toList();
   }
 
-  public ImportResponse addVideo(String url,String targetLang, AppUser user) {
+  public ImportResponse addVideo(String url, String targetLang, AppUser user) {
     String videoId = extractVideoId(url);
+    VideoInfo info = nlpClient.getVideoInfo(videoId);
     Video saved = videoRepository.save(
         Video.builder()
-            .videoId(videoId)
-            .thumbnailUrl("https://img.youtube.com/vi/" + videoId + "/hqdefault.jpg")
-            .type(detectType(url))
             .targetLang(targetLang)
+            .title(info.title())
+            .author(info.author())
+            .videoId(videoId)
+            .duration(info.duration())
             .user(user)
             .build()
     );
@@ -71,6 +73,9 @@ public class VideoService {
   public TranscriptResponseDto getTranscript(UUID video_uuid) {
     Video video = videoRepository.findById(video_uuid)
         .orElseThrow(() -> new VideoNotFoundException(video_uuid));
+
+    video.updateLastOpenedAt();
+    videoRepository.save(video);
 
     String nativeLang = video.getUser().getNativeLang();
 
@@ -89,16 +94,13 @@ public class VideoService {
         .map(video -> new VideoDto(
             video.getId(),
             video.getTargetLang(),
-            video.getVideoId()
+            video.getVideoId(),
+            video.getTitle(),
+            video.getAuthor(),
+            video.getDuration(),
+            video.getLastOpenedAt()
         ))
         .toList();
-  }
-
-  private VideoType detectType(String url) {
-    if (url.contains("/shorts/")) {
-      return VideoType.SHORT;
-    }
-    return VideoType.VIDEO;
   }
 
   private String extractVideoId(String url) {

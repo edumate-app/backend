@@ -7,6 +7,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
@@ -20,12 +22,21 @@ public class Video {
   private UUID id;
 
   private String targetLang;
-
+  private String title;
+  private String author;
   private String videoId;
-  private String thumbnailUrl;
-  @Enumerated(EnumType.STRING)
-  private VideoType type;
+  private int duration;
+
+  private Instant lastOpenedAt;
+  private int lastPositionSeconds;
 
   @ManyToOne
   private AppUser user;
+
+  public void updatePosition(int seconds) {
+    this.lastPositionSeconds = seconds;
+  }
+  public void updateLastOpenedAt() {
+    this.lastOpenedAt = Instant.now();
+  }
 }
