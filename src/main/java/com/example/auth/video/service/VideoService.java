@@ -168,7 +168,8 @@ public class VideoService {
   }
 
   public List<VideoDto> getVideos (AppUser user) {
-    return videoRepository.findAllByUser(user)
+    List<Video> videos = videoRepository.findTop10ByUserOrderByLastOpenedAtDesc(user);
+    return videos
         .stream()
         .map(video -> new VideoDto(
             video.getId(),

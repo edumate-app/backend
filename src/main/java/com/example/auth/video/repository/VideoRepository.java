@@ -23,6 +23,7 @@ public interface VideoRepository extends JpaRepository<Video, UUID> {
       @Param("user") AppUser user
   );
 
+  List<Video> findTop10ByUserOrderByLastOpenedAtDesc(AppUser user);
   @Modifying
   @Query("UPDATE Video v SET v.lastOpenedAt = CURRENT_TIMESTAMP WHERE v.id = :videoId")
   int updateLastOpenedAt(@Param("videoId") UUID videoId);
