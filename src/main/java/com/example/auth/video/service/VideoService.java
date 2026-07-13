@@ -16,6 +16,7 @@ import lombok.AllArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.List;
@@ -49,6 +50,7 @@ public class VideoService {
         .toList();
   }
 
+  @Transactional
   public ImportResponse importVideo(String url, String targetLang, AppUser user) {
     String videoId = extractVideoId(url);
     VideoInfo info = nlpClient.getVideoInfo(videoId);
@@ -88,25 +90,32 @@ public class VideoService {
     return new ImportResponse(video.getId());
   }
 
+  @Transactional
   public TranscriptResponseDto getTranscript(UUID video_uuid) {
     log.info("Getting transcript for video: {}", video_uuid);
 
-    Video video = videoRepository.findById(video_uuid)
+    // 1: Update lastOpenedAt timestamp (1 UPDATE query)
+    int updated = videoRepository.updateLastOpenedAt(video_uuid);
+    if (updated == 0) {
+      throw new VideoNotFoundException(video_uuid);
+    }
+
+    // 2: Fetch video with segments in single query (1 SELECT with JOIN FETCH to avoid N+1)
+    Video video = videoRepository.findByIdWithSegments(video_uuid)
         .orElseThrow(() -> new VideoNotFoundException(video_uuid));
 
-    video.updateLastOpenedAt();
-    videoRepository.save(video);
-
+    // 3: Validate user's native language is set
     String nativeLang = video.getUser().getNativeLang();
-
     if (nativeLang == null) {
       log.error("Native language not set for user: {}", video.getUser().getEmail());
       throw new NativeLanguageNotSetException();
     }
 
+    // 4: Check if segments exist in database
     List<TranscriptSegment> segments = video.getTranscriptSegments();
 
     if (segments == null || segments.isEmpty()) {
+      // Step 5: No segments found - fallback to NLP service
       log.info("No transcript found in database for video: {}. Fetching from NLP service...", video_uuid);
 
       String videoId = video.getVideoId();
@@ -119,6 +128,7 @@ public class VideoService {
 
       log.info("Received {} segments from NLP service for video: {}", segmentsDto.size(), video_uuid);
 
+      // 6: Save nlpSegments to DB
       List<TranscriptSegment> nlpSegments = segmentsDto
           .stream()
           .map(segment -> TranscriptSegment.builder()
@@ -128,12 +138,12 @@ public class VideoService {
               .duration(segment.duration())
               .build())
           .toList();
-
       video.addTranscriptSegments(nlpSegments);
       videoRepository.save(video);
 
       log.info("Successfully saved {} segments to database for video: {}", nlpSegments.size(), video_uuid);
 
+      // 7: Return transcript from NLP service
       return new TranscriptResponseDto(
           segmentsDto,
           videoId,
@@ -141,8 +151,8 @@ public class VideoService {
       );
     }
 
+    // 8: Return existing segments from database
     log.info("Returning {} segments from database for video: {}", segments.size(), video_uuid);
-
     return new TranscriptResponseDto(
         segments.stream()
             .map(s -> new TranscriptSegmentDto(
@@ -173,14 +183,15 @@ public class VideoService {
         .toList();
   }
 
+  @Transactional
   public void updatePosition(UUID videoId, int positionSeconds) {
-    System.out.println(videoId);
-    System.out.println(positionSeconds);
-    Video video = videoRepository.findById(videoId)
-        .orElseThrow(() -> new VideoNotFoundException(videoId));
+    log.info("Updating position for video: {} to {}", videoId, positionSeconds);
 
-    video.updatePosition(positionSeconds);
-    videoRepository.save(video);
+    int updatedRows = videoRepository.updatePositionAndLastOpened(videoId, positionSeconds);
+
+    if (updatedRows == 0) {
+      throw new VideoNotFoundException(videoId);
+    }
   }
 
   private String extractVideoId(String url) {
