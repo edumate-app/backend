@@ -4,20 +4,18 @@ import com.example.auth.nlp.NlpClient;
 import com.example.auth.nlp.dto.NlpLanguageDto;
 import com.example.auth.nlp.dto.NlpTranscriptRequest;
 import com.example.auth.nlp.dto.VideoInfo;
-import com.example.auth.video.dto.VideoDto;
+import com.example.auth.video.dto.*;
+import com.example.auth.video.entity.TranscriptSegment;
 import com.example.auth.video.exception.InvalidVideoUrlException;
 import com.example.auth.video.exception.NativeLanguageNotSetException;
 import com.example.auth.video.exception.VideoNotFoundException;
 import com.example.auth.user.entity.AppUser;
-import com.example.auth.video.dto.ImportResponse;
-import com.example.auth.video.dto.LanguageDto;
-import com.example.auth.video.dto.TranscriptResponseDto;
 import com.example.auth.video.entity.Video;
 import com.example.auth.video.repository.VideoRepository;
 import lombok.AllArgsConstructor;
-import org.springframework.http.HttpStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.HashSet;
 import java.util.List;
@@ -31,12 +29,10 @@ import java.util.regex.Pattern;
 public class VideoService {
   private final NlpClient nlpClient;
   private final VideoRepository videoRepository;
+  private static final Logger log = LoggerFactory.getLogger(VideoService.class);
 
   public List<LanguageDto> getAvailableLang(String url, AppUser user) {
     String videoId = extractVideoId(url);
-    if (videoId == null || videoId.length() != 11) {
-      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid YouTube URL");
-    }
 
     List<NlpLanguageDto> languages = nlpClient.getAvailableLang(videoId);
 
@@ -53,24 +49,48 @@ public class VideoService {
         .toList();
   }
 
-  public ImportResponse addVideo(String url, String targetLang, AppUser user) {
+  public ImportResponse importVideo(String url, String targetLang, AppUser user) {
     String videoId = extractVideoId(url);
     VideoInfo info = nlpClient.getVideoInfo(videoId);
-    Video saved = videoRepository.save(
-        Video.builder()
-            .targetLang(targetLang)
-            .title(info.title())
-            .author(info.author())
-            .videoId(videoId)
-            .duration(info.duration())
-            .user(user)
-            .build()
-    );
 
-    return new ImportResponse(saved.getId());
+    Video video = Video.builder()
+        .targetLang(targetLang)
+        .title(info.title())
+        .author(info.author())
+        .videoId(videoId)
+        .duration(info.duration())
+        .user(user)
+        .build();
+
+    try {
+      String nativeLang = user.getNativeLang();
+      if (nativeLang != null) {
+        NlpTranscriptRequest request = new NlpTranscriptRequest(targetLang, nativeLang);
+        List<TranscriptSegment> segments = nlpClient.getTranscript(videoId, request)
+            .stream()
+            .map(segment -> TranscriptSegment.builder()
+                .nativeText(segment.nativeText())
+                .targetText(segment.targetText())
+                .start(segment.start())
+                .duration(segment.duration())
+                .build())
+            .toList();
+
+        video.addTranscriptSegments(segments);
+      }
+    } catch (Exception e) {
+      // If the transcript could not be retrieved, continue - it will be fetched later as a fallback
+      // Log the error, but do not interrupt the import process
+      System.err.println("Failed to fetch transcript during import: " + e.getMessage());
+    }
+
+    videoRepository.save(video);
+    return new ImportResponse(video.getId());
   }
 
   public TranscriptResponseDto getTranscript(UUID video_uuid) {
+    log.info("Getting transcript for video: {}", video_uuid);
+
     Video video = videoRepository.findById(video_uuid)
         .orElseThrow(() -> new VideoNotFoundException(video_uuid));
 
@@ -80,12 +100,61 @@ public class VideoService {
     String nativeLang = video.getUser().getNativeLang();
 
     if (nativeLang == null) {
+      log.error("Native language not set for user: {}", video.getUser().getEmail());
       throw new NativeLanguageNotSetException();
     }
 
-    String video_id = video.getVideoId();
-    NlpTranscriptRequest request = new NlpTranscriptRequest(video.getTargetLang(), nativeLang);
-    return new TranscriptResponseDto(nlpClient.getTranscript(video_id, request), video_id, video.getLastPositionSeconds());
+    List<TranscriptSegment> segments = video.getTranscriptSegments();
+
+    if (segments == null || segments.isEmpty()) {
+      log.info("No transcript found in database for video: {}. Fetching from NLP service...", video_uuid);
+
+      String videoId = video.getVideoId();
+      NlpTranscriptRequest request = new NlpTranscriptRequest(video.getTargetLang(), nativeLang);
+
+      log.debug("Calling NLP service with videoId: {}, targetLang: {}, nativeLang: {}",
+          videoId, video.getTargetLang(), nativeLang);
+
+      List<TranscriptSegmentDto> segmentsDto = nlpClient.getTranscript(videoId, request);
+
+      log.info("Received {} segments from NLP service for video: {}", segmentsDto.size(), video_uuid);
+
+      List<TranscriptSegment> nlpSegments = segmentsDto
+          .stream()
+          .map(segment -> TranscriptSegment.builder()
+              .nativeText(segment.nativeText())
+              .targetText(segment.targetText())
+              .start(segment.start())
+              .duration(segment.duration())
+              .build())
+          .toList();
+
+      video.addTranscriptSegments(nlpSegments);
+      videoRepository.save(video);
+
+      log.info("Successfully saved {} segments to database for video: {}", nlpSegments.size(), video_uuid);
+
+      return new TranscriptResponseDto(
+          segmentsDto,
+          videoId,
+          video.getLastPositionSeconds()
+      );
+    }
+
+    log.info("Returning {} segments from database for video: {}", segments.size(), video_uuid);
+
+    return new TranscriptResponseDto(
+        segments.stream()
+            .map(s -> new TranscriptSegmentDto(
+                s.getNativeText(),
+                s.getTargetText(),
+                s.getStart(),
+                s.getDuration()
+            ))
+            .toList(),
+        video.getVideoId(),
+        video.getLastPositionSeconds()
+    );
   }
 
   public List<VideoDto> getVideos (AppUser user) {

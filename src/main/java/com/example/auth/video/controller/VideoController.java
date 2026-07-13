@@ -25,7 +25,7 @@ public class VideoController {
   @PostMapping("/import")
   public ImportResponse addVideo(@RequestBody ImportRequest request,
                                  @AuthenticationPrincipal AppUser user) {
-    return videoService.addVideo(request.url(), request.targetLang() , user);
+    return videoService.importVideo(request.url(), request.targetLang() , user);
   }
 
   @GetMapping("/transcript/{videoUUID}")
