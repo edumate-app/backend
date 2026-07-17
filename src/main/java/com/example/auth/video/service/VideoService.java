@@ -147,7 +147,8 @@ public class VideoService {
       return new TranscriptResponseDto(
           segmentsDto,
           videoId,
-          video.getLastPositionSeconds()
+          video.getLastPositionSeconds(),
+          video.getTargetLang()
       );
     }
 
@@ -163,7 +164,8 @@ public class VideoService {
             ))
             .toList(),
         video.getVideoId(),
-        video.getLastPositionSeconds()
+        video.getLastPositionSeconds(),
+        video.getTargetLang()
     );
   }
 

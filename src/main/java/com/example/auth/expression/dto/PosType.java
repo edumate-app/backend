@@ -1,0 +1,21 @@
+package com.example.auth.expression.dto;
+
+public enum PosType {
+  ADJ,
+  ADP,
+  ADV,
+  AUX,
+  CCONJ,
+  DET,
+  INTJ,
+  NOUN,
+  NUM,
+  PART,
+  PRON,
+  PROPN,
+  PUNCT,
+  SCONJ,
+  SYM,
+  VERB,
+  X;
+}

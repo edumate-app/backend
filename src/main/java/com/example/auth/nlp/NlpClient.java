@@ -1,5 +1,7 @@
 package com.example.auth.nlp;
 
+import com.example.auth.expression.dto.WordAnalyzedDto;
+import com.example.auth.nlp.dto.AnalyzeRequest;
 import com.example.auth.nlp.dto.NlpLanguageDto;
 import com.example.auth.nlp.dto.NlpTranscriptRequest;
 import com.example.auth.nlp.dto.VideoInfo;
@@ -27,6 +29,17 @@ public class NlpClient {
               .responseTimeout(Duration.ofSeconds(15))
       ))
       .build();
+
+  public List<WordAnalyzedDto> getAnalysis(AnalyzeRequest request) {
+    return webClient.post()
+        .uri("/analyze")
+        .bodyValue(request)
+        .retrieve()
+        .bodyToMono(new ParameterizedTypeReference<List<WordAnalyzedDto>>() {})
+        .timeout(Duration.ofSeconds(30))
+        .block();
+  }
+
 
   public List<NlpLanguageDto> getAvailableLang(String videoId) {
     return webClient.get()
