@@ -4,6 +4,7 @@ import com.example.auth.user.entity.AppUser;
 import com.example.auth.video.dto.*;
 import com.example.auth.video.service.VideoService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,11 +25,25 @@ public class VideoController {
   @PostMapping("/import")
   public ImportResponse addVideo(@RequestBody ImportRequest request,
                                  @AuthenticationPrincipal AppUser user) {
-    return videoService.addVideo(request.url(), request.targetLang() , user);
+    return videoService.importVideo(request.url(), request.targetLang() , user);
   }
 
   @GetMapping("/transcript/{videoUUID}")
   public TranscriptResponseDto getTranscript(@PathVariable UUID videoUUID) {
     return videoService.getTranscript(videoUUID);
+  }
+
+  @GetMapping
+  public List<VideoDto> getVideos(@AuthenticationPrincipal AppUser user) {
+    return videoService.getVideos(user);
+  }
+
+  @PatchMapping("/{videoId}/position")
+  public ResponseEntity<Void> updatePosition(
+      @PathVariable UUID videoId,
+      @RequestBody UpdatePositionRequest request
+  ) {
+    videoService.updatePosition(videoId, request.positionSeconds());
+    return ResponseEntity.ok().build();
   }
 }
