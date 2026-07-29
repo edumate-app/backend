@@ -7,6 +7,7 @@ public record StorageProperties(
     String endpoint,
     String accessKey,
     String secretKey,
-    String bucket
+    String bucket,
+    String region
 ) {
 }
