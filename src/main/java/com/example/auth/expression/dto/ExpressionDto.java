@@ -1,13 +1,15 @@
 package com.example.auth.expression.dto;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
 public record ExpressionDto (
     UUID id,
-    String text,
+    String lemma,
     String lemmaTranslation,
     PosType pos,
-    List<VerbConjugationForm> conjugation
+    List<VerbConjugationForm> conjugation,
+    LocalDateTime addedAt
 ) {
 }

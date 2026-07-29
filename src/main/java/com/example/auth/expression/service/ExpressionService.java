@@ -14,9 +14,7 @@ import com.example.auth.video.exception.ExpressionNotFoundException;
 import com.example.auth.video.exception.TranscriptSegmentNotFoundException;
 import com.example.auth.video.exception.VideoNotFoundException;
 import com.example.auth.video.repository.VideoRepository;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.AllArgsConstructor;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -112,7 +110,8 @@ public class ExpressionService {
             ex.getLemma(),
             ex.getLemmaTranslation(),
             ex.getPos(),
-            ex.getConjugation()
+            ex.getConjugation(),
+            ex.getAddedAt()
         ))
         .toList();
   }
