@@ -1,9 +1,6 @@
 package com.example.auth.expression.service;
 
-import com.example.auth.expression.dto.ExpressionDto;
-import com.example.auth.expression.dto.SaveExpressionDto;
-import com.example.auth.expression.dto.SaveExpressionRequest;
-import com.example.auth.expression.dto.WordAnalyzedDto;
+import com.example.auth.expression.dto.*;
 import com.example.auth.expression.entity.Expression;
 import com.example.auth.expression.entity.ExpressionContext;
 import com.example.auth.expression.repository.ExpressionContextRepository;
@@ -13,6 +10,7 @@ import com.example.auth.nlp.dto.AnalyzeRequest;
 import com.example.auth.user.entity.AppUser;
 import com.example.auth.video.entity.TranscriptSegment;
 import com.example.auth.video.entity.Video;
+import com.example.auth.video.exception.ExpressionNotFoundException;
 import com.example.auth.video.exception.TranscriptSegmentNotFoundException;
 import com.example.auth.video.exception.VideoNotFoundException;
 import com.example.auth.video.repository.VideoRepository;
@@ -22,10 +20,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -101,10 +96,29 @@ public class ExpressionService {
     return expressions
         .stream()
         .map(ex -> new ExpressionDto(
+            ex.getId(),
             ex.getLemma(),
             ex.getTranslation(),
             ex.getPos(),
             ex.getConjugation()
+        ))
+        .toList();
+  }
+
+  @Transactional(readOnly = true)
+  public List<ContextDto> getContexts(AppUser user, UUID expressionId) {
+    Expression expression = expressionRepository.findById(expressionId)
+        .filter(e -> e.getUser().getId().equals(user.getId()))
+        .orElseThrow(() -> new ExpressionNotFoundException(expressionId));
+
+    return expressionContextRepository.findAllByExpressionIdWithVideo(expression.getId()).stream()
+        .map(ec -> new ContextDto(
+            ec.getTargetSentence(),
+            ec.getNativeTranslation(),
+            ec.getVideo().getId(),
+            ec.getVideo().getTitle(),
+            ec.getMatchedForms(),
+            ec.getStartSeconds()
         ))
         .toList();
   }
