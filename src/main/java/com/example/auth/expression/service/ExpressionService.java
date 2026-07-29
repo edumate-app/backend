@@ -62,7 +62,7 @@ public class ExpressionService {
         ));
 
     byLemma.forEach((lemma, dtos) -> {
-      SaveExpressionDto first = dtos.get(0);
+      SaveExpressionDto first = dtos.getFirst();
 
       Expression expression = expressionRepository.findByUserAndLemma(user, lemma)
           .orElseGet(() -> expressionRepository.save(
