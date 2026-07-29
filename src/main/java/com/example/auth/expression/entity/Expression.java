@@ -32,7 +32,7 @@ public class Expression {
   private String lemma;
 
   @Column(nullable = false)
-  private String translation;
+  private String lemmaTranslation;
 
   @Column(nullable = false)
   @Enumerated(EnumType.STRING)

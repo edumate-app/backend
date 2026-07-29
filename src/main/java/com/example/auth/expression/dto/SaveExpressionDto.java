@@ -5,7 +5,7 @@ import java.util.List;
 public record SaveExpressionDto(
     String text,
     String lemma,
-    String translation,
+    String lemmaTranslation,
     PosType pos,
     List<VerbConjugationForm> conjugation
 ) {

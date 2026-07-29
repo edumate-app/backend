@@ -6,7 +6,7 @@ import java.util.UUID;
 public record ExpressionDto (
     UUID id,
     String text,
-    String translation,
+    String lemmaTranslation,
     PosType pos,
     List<VerbConjugationForm> conjugation
 ) {

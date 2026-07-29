@@ -48,6 +48,7 @@ public class ExpressionService {
     }
 
     TranscriptSegment segment = segments.get(contextIndex);
+    Integer startSeconds = segment.getStart().intValue();
 
     var byLemma = request.expressions().stream()
         .collect(Collectors.groupingBy(
@@ -64,7 +65,7 @@ public class ExpressionService {
               Expression.builder()
                   .user(user)
                   .lemma(lemma)
-                  .translation(first.translation())
+                  .lemmaTranslation(first.lemmaTranslation())
                   .pos(first.pos())
                   .conjugation(first.conjugation() != null
                       ? first.conjugation()
@@ -72,19 +73,30 @@ public class ExpressionService {
                   .build()
           ));
 
-      List<String> matchedForms = dtos.stream()
+      List<String> newForms = dtos.stream()
           .map(SaveExpressionDto::text)
           .filter(Objects::nonNull)
-          .collect(Collectors.toCollection(ArrayList::new));
+          .distinct()
+          .toList();
 
-      ExpressionContext context = ExpressionContext.builder()
-          .expression(expression)
-          .targetSentence(segment.getTargetText())
-          .nativeTranslation(segment.getNativeText())
-          .matchedForms(matchedForms)
-          .video(video)
-          .startSeconds(segment.getStart().intValue())
-          .build();
+      ExpressionContext context = expressionContextRepository
+          .findByExpressionAndVideoAndStartSeconds(expression, video, startSeconds)
+          .orElse(null);
+
+      if (context != null) {
+        var merged = new LinkedHashSet<>(context.getMatchedForms());
+        merged.addAll(newForms);
+        context.setMatchedForms(new ArrayList<>(merged));
+      } else {
+        context = ExpressionContext.builder()
+            .expression(expression)
+            .targetSentence(segment.getTargetText())
+            .nativeTranslation(segment.getNativeText())
+            .matchedForms(new ArrayList<>(newForms))
+            .video(video)
+            .startSeconds(startSeconds)
+            .build();
+      }
 
       expressionContextRepository.save(context);
     });
@@ -98,7 +110,7 @@ public class ExpressionService {
         .map(ex -> new ExpressionDto(
             ex.getId(),
             ex.getLemma(),
-            ex.getTranslation(),
+            ex.getLemmaTranslation(),
             ex.getPos(),
             ex.getConjugation()
         ))

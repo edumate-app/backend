@@ -1,11 +1,14 @@
 package com.example.auth.expression.repository;
 
+import com.example.auth.expression.entity.Expression;
 import com.example.auth.expression.entity.ExpressionContext;
+import com.example.auth.video.entity.Video;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface ExpressionContextRepository extends JpaRepository<ExpressionContext, UUID> {
@@ -16,4 +19,10 @@ public interface ExpressionContextRepository extends JpaRepository<ExpressionCon
         ORDER BY ec.savedAt ASC
     """)
   List<ExpressionContext> findAllByExpressionIdWithVideo(@Param("expressionId") UUID expressionId);
+
+  Optional<ExpressionContext> findByExpressionAndVideoAndStartSeconds(
+      Expression expression,
+      Video video,
+      Integer startSeconds
+  );
 }
