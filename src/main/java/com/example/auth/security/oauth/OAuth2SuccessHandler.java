@@ -2,6 +2,8 @@ package com.example.auth.security.oauth;
 
 import com.example.auth.auth.service.RefreshTokenService;
 import com.example.auth.security.jwt.JwtService;
+import com.example.auth.storage.AvatarStorageService;
+import com.example.auth.storage.StorageService;
 import com.example.auth.user.entity.AppUser;
 import com.example.auth.user.entity.AuthProvider;
 import com.example.auth.user.repository.UserRepository;
@@ -16,6 +18,7 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -23,6 +26,8 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
   private final UserRepository userRepository;
   private final JwtService jwtService;
   private final RefreshTokenService refreshTokenService;
+  private final StorageService storageService;
+  private final AvatarStorageService avatarStorageService;
 
   @Override
   public void onAuthenticationSuccess(
@@ -47,14 +52,20 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     );
 
     AppUser user = userRepository.findByEmail(principal.getEmail())
-        .orElseGet(() -> userRepository.save(
-            AppUser.builder()
-                .email(principal.getEmail())
-                .name(principal.getName())
-                .avatarUrl(principal.getAvatarUrl())
-                .provider(AuthProvider.valueOf(provider))
-                .build()
-        ));
+        .orElseGet(() -> {
+          UUID avatarKey = avatarStorageService
+              .fetchAndStore(principal.getAvatarUrl(), principal.getEmail())
+              .orElse(null);
+
+          return userRepository.save(
+              AppUser.builder()
+                  .email(principal.getEmail())
+                  .name(principal.getName())
+                  .avatarKey(avatarKey)
+                  .provider(AuthProvider.valueOf(provider))
+                  .build()
+          );
+        });
 
     String accessToken = jwtService.generateToken(user.getEmail(), user.getId());
     String refreshToken = refreshTokenService.createRefreshToken(user);
