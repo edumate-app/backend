@@ -11,7 +11,7 @@ public interface StorageService {
   );
 
   void delete(
-      String key
+      UUID key
   );
 
   String getUrl(UUID key);

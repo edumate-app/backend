@@ -64,9 +64,20 @@ public class UserService {
     userRepository.save(user);
 
     if (oldKey != null) {
-      storageService.delete(String.valueOf(oldKey));
+      storageService.delete(oldKey);
     }
 
+    return me(user);
+  }
+
+  @Transactional
+  public UserDto deleteAvatar(AppUser user) {
+    UUID oldKey = user.getAvatarKey();
+    user.setAvatarKey(null);
+    userRepository.save(user);
+    if (oldKey != null) {
+      storageService.delete(oldKey);
+    }
     return me(user);
   }
 }

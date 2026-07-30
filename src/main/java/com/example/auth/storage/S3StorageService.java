@@ -37,7 +37,7 @@ public class S3StorageService implements StorageService {
                 file.getContentType()
             )
             .build();
-    
+
     try {
       s3.putObject(
           request,
@@ -55,11 +55,11 @@ public class S3StorageService implements StorageService {
   }
 
   @Override
-  public void delete(String key) {
+  public void delete(UUID key) {
     s3.deleteObject(builder ->
         builder
             .bucket(props.bucket())
-            .key(key)
+            .key(String.valueOf(key))
             .build()
     );
   }
