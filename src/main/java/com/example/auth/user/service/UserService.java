@@ -17,7 +17,6 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-@AllArgsConstructor
 public class UserService {
   private static final long MAX_AVATAR_SIZE = 5 * 1024 * 1024; // 5 MB
   private static final Set<String> ALLOWED_CONTENT_TYPES = Set.of(
@@ -82,7 +81,8 @@ public class UserService {
       storageService.delete(oldKey);
     }
     return me(user);
-  
+  }
+
   public void updateNativeLang(AppUser user, String lang) {
     user.setNativeLang(lang);
     userRepository.save(user);
