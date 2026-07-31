@@ -5,8 +5,10 @@ import com.example.auth.user.dto.UpdateNativeLangRequest;
 import com.example.auth.user.entity.AppUser;
 import com.example.auth.user.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/user")
@@ -20,8 +22,26 @@ public class UserController {
     return userService.me(user);
   }
 
+  @PutMapping(value = "/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  public UserDto updateAvatar(
+      @AuthenticationPrincipal AppUser user,
+      @RequestParam("file") MultipartFile file
+  ) {
+    return userService.updateAvatar(user, file);
+  }
+
+  @DeleteMapping("/avatar")
+  public UserDto deleteAvatar(
+      @AuthenticationPrincipal AppUser user
+  ) {
+    return userService.deleteAvatar(user);
+  }
+
   @PatchMapping("/native-lang")
-  public void updateNativeLang(@AuthenticationPrincipal AppUser user, @RequestBody UpdateNativeLangRequest request) {
+  public void updateNativeLang(
+      @AuthenticationPrincipal AppUser user,
+      @RequestBody UpdateNativeLangRequest request
+  ) {
     userService.updateNativeLang(user, request.lang());
   }
 }

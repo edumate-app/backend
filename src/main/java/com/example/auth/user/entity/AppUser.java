@@ -1,4 +1,5 @@
 package com.example.auth.user.entity;
+
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -26,6 +27,7 @@ public class AppUser implements UserDetails {
   private String password;
   private String avatarUrl;
   private String nativeLang;
+
   @Enumerated(EnumType.STRING)
   private AuthProvider provider;
 
