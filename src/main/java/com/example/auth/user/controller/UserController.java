@@ -1,6 +1,7 @@
 package com.example.auth.user.controller;
 
 import com.example.auth.auth.dto.UserDto;
+import com.example.auth.user.dto.UpdateNativeLangRequest;
 import com.example.auth.user.entity.AppUser;
 import com.example.auth.user.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -34,5 +35,13 @@ public class UserController {
       @AuthenticationPrincipal AppUser user
   ) {
     return userService.deleteAvatar(user);
+  }
+
+  @PatchMapping("/native-lang")
+  public void updateNativeLang(
+      @AuthenticationPrincipal AppUser user,
+      @RequestBody UpdateNativeLangRequest request
+  ) {
+    userService.updateNativeLang(user, request.lang());
   }
 }

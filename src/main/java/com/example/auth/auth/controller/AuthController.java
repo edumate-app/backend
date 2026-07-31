@@ -3,6 +3,7 @@ package com.example.auth.auth.controller;
 import com.example.auth.auth.dto.AuthTokens;
 import com.example.auth.auth.dto.LoginRequest;
 import com.example.auth.auth.dto.RegisterRequest;
+import com.example.auth.auth.exception.RefreshTokenMissingException;
 import com.example.auth.auth.service.AuthService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -99,10 +100,7 @@ public class AuthController {
         .filter(c -> c.getName().equals("refresh_token"))
         .findFirst()
         .map(Cookie::getValue)
-        .orElseThrow(() -> {
-          System.out.println("Refresh token missing!");
-          return new RuntimeException("Refresh token missing");
-        });
+        .orElseThrow(RefreshTokenMissingException::new);
 
     System.out.println("Refresh token found: " + refreshToken);
 

@@ -1,6 +1,7 @@
 package com.example.auth.auth.service;
 
 import com.example.auth.auth.entity.RefreshToken;
+import com.example.auth.auth.exception.InvalidRefreshTokenException;
 import com.example.auth.auth.repository.RefreshTokenRepository;
 import com.example.auth.user.entity.AppUser;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +34,7 @@ public class RefreshTokenService {
   public RefreshToken verifyToken(String refreshToken) {
     return refreshTokenRepository
         .findValidByToken(refreshToken)
-        .orElseThrow(() -> new RuntimeException("Invalid or expired refresh token"));
+        .orElseThrow(InvalidRefreshTokenException::new);
   }
 
   @Transactional
