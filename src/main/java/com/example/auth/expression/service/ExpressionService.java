@@ -1,18 +1,136 @@
 package com.example.auth.expression.service;
 
-import com.example.auth.expression.dto.WordAnalyzedDto;
+import com.example.auth.expression.dto.*;
+import com.example.auth.expression.entity.Expression;
+import com.example.auth.expression.entity.ExpressionContext;
+import com.example.auth.expression.repository.ExpressionContextRepository;
+import com.example.auth.expression.repository.ExpressionRepository;
 import com.example.auth.nlp.NlpClient;
 import com.example.auth.nlp.dto.AnalyzeRequest;
+import com.example.auth.user.entity.AppUser;
+import com.example.auth.video.entity.TranscriptSegment;
+import com.example.auth.video.entity.Video;
+import com.example.auth.video.exception.ExpressionNotFoundException;
+import com.example.auth.video.exception.TranscriptSegmentNotFoundException;
+import com.example.auth.video.exception.VideoNotFoundException;
+import com.example.auth.video.repository.VideoRepository;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
-import java.util.List;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @AllArgsConstructor
 public class ExpressionService {
   private final NlpClient nlpClient;
+  private final ExpressionRepository expressionRepository;
+  private final VideoRepository videoRepository;
+  private final ExpressionContextRepository expressionContextRepository;
 
   public List<WordAnalyzedDto> getAnalysis(AnalyzeRequest request) {
     return nlpClient.getAnalysis(request);
+  }
+
+  @Transactional
+  public void saveExpressions(SaveExpressionRequest request, AppUser user) {
+    Video video = videoRepository.findByIdWithSegments(request.video_uuid())
+        .orElseThrow(() -> new VideoNotFoundException(request.video_uuid()));
+
+    List<TranscriptSegment> segments = video.getTranscriptSegments();
+    int contextIndex = request.contextIndex();
+
+    if (contextIndex < 0 || contextIndex >= segments.size()) {
+      throw new TranscriptSegmentNotFoundException(request.video_uuid(), contextIndex);
+    }
+
+    TranscriptSegment segment = segments.get(contextIndex);
+    Integer startSeconds = segment.getStart().intValue();
+
+    var byLemma = request.expressions().stream()
+        .collect(Collectors.groupingBy(
+            SaveExpressionDto::lemma,
+            LinkedHashMap::new,
+            Collectors.toList()
+        ));
+
+    byLemma.forEach((lemma, dtos) -> {
+      SaveExpressionDto first = dtos.getFirst();
+
+      Expression expression = expressionRepository.findByUserAndLemma(user, lemma)
+          .orElseGet(() -> expressionRepository.save(
+              Expression.builder()
+                  .user(user)
+                  .lemma(lemma)
+                  .lemmaTranslation(first.lemmaTranslation())
+                  .pos(first.pos())
+                  .conjugation(first.conjugation() != null
+                      ? first.conjugation()
+                      : List.of())
+                  .build()
+          ));
+
+      List<String> newForms = dtos.stream()
+          .map(SaveExpressionDto::text)
+          .filter(Objects::nonNull)
+          .distinct()
+          .toList();
+
+      ExpressionContext context = expressionContextRepository
+          .findByExpressionAndVideoAndStartSeconds(expression, video, startSeconds)
+          .orElse(null);
+
+      if (context != null) {
+        var merged = new LinkedHashSet<>(context.getMatchedForms());
+        merged.addAll(newForms);
+        context.setMatchedForms(new ArrayList<>(merged));
+      } else {
+        context = ExpressionContext.builder()
+            .expression(expression)
+            .targetSentence(segment.getTargetText())
+            .nativeTranslation(segment.getNativeText())
+            .matchedForms(new ArrayList<>(newForms))
+            .video(video)
+            .startSeconds(startSeconds)
+            .build();
+      }
+
+      expressionContextRepository.save(context);
+    });
+  }
+
+  @Transactional(readOnly = true)
+  public List<ExpressionDto> getUserExpressions(AppUser user) {
+    List<Expression> expressions = expressionRepository.findAllByUser(user);
+    return expressions
+        .stream()
+        .map(ex -> new ExpressionDto(
+            ex.getId(),
+            ex.getLemma(),
+            ex.getLemmaTranslation(),
+            ex.getPos(),
+            ex.getConjugation(),
+            ex.getAddedAt()
+        ))
+        .toList();
+  }
+
+  @Transactional(readOnly = true)
+  public List<ContextDto> getContexts(AppUser user, UUID expressionId) {
+    Expression expression = expressionRepository.findById(expressionId)
+        .filter(e -> e.getUser().getId().equals(user.getId()))
+        .orElseThrow(() -> new ExpressionNotFoundException(expressionId));
+
+    return expressionContextRepository.findAllByExpressionIdWithVideo(expression.getId()).stream()
+        .map(ec -> new ContextDto(
+            ec.getTargetSentence(),
+            ec.getNativeTranslation(),
+            ec.getVideo().getId(),
+            ec.getVideo().getTitle(),
+            ec.getMatchedForms(),
+            ec.getStartSeconds()
+        ))
+        .toList();
   }
 }
