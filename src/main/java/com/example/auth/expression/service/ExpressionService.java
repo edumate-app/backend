@@ -78,7 +78,7 @@ public class ExpressionService {
           .toList();
 
       ExpressionContext context = expressionContextRepository
-          .findByExpressionAndVideoAndStartSeconds(expression, video, startSeconds)
+          .findByExpressionAndTranscriptSegment(expression, segment)
           .orElse(null);
 
       if (context != null) {
@@ -88,6 +88,7 @@ public class ExpressionService {
       } else {
         context = ExpressionContext.builder()
             .expression(expression)
+            .transcriptSegment(segment)
             .targetSentence(segment.getTargetText())
             .nativeTranslation(segment.getNativeText())
             .matchedForms(new ArrayList<>(newForms))

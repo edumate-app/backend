@@ -1,6 +1,5 @@
 package com.example.auth.expression.entity;
 
-import com.example.auth.expression.dto.NumberType;
 import com.example.auth.expression.dto.PosType;
 import com.example.auth.expression.dto.VerbConjugationForm;
 import com.example.auth.user.entity.AppUser;

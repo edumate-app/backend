@@ -1,5 +1,6 @@
 package com.example.auth.expression.entity;
 
+import com.example.auth.video.entity.TranscriptSegment;
 import com.example.auth.video.entity.Video;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
@@ -17,6 +18,12 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
+@Table(
+    uniqueConstraints = @UniqueConstraint(
+        name = "uk_expression_context_expression_segment",
+        columnNames = {"expression_id", "transcript_segment_id"}
+    )
+)
 public class ExpressionContext {
   @Id
   @GeneratedValue(strategy = GenerationType.UUID)
@@ -29,6 +36,14 @@ public class ExpressionContext {
   @EqualsAndHashCode.Exclude
   private Expression expression;
 
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(name = "transcript_segment_id", nullable = false)
+  @JsonIgnore
+  @ToString.Exclude
+  @EqualsAndHashCode.Exclude
+  private TranscriptSegment transcriptSegment;
+
+  /** Snapshot of segment text at save time (stable if subtitles change later). */
   private String targetSentence;
   private String nativeTranslation;
 

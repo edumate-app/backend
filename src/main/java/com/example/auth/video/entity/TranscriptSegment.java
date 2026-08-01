@@ -3,6 +3,8 @@ package com.example.auth.video.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -31,4 +33,26 @@ public class TranscriptSegment {
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "video_id", nullable = false)
   private Video video;
+
+  @OneToMany(
+      mappedBy = "segment",
+      cascade = CascadeType.ALL,
+      orphanRemoval = true,
+      fetch = FetchType.LAZY
+  )
+  @OrderBy("tokenIndex ASC")
+  @Builder.Default
+  private List<TranscriptToken> tokens = new ArrayList<>();
+
+  public void addToken(TranscriptToken token) {
+    tokens.add(token);
+    token.setSegment(this);
+  }
+
+  public void addTokens(List<TranscriptToken> tokensToAdd) {
+    if (tokensToAdd == null || tokensToAdd.isEmpty()) {
+      return;
+    }
+    tokensToAdd.forEach(this::addToken);
+  }
 }
