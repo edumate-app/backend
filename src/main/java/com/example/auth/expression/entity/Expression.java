@@ -1,15 +1,12 @@
 package com.example.auth.expression.entity;
 
 import com.example.auth.expression.dto.PosType;
-import com.example.auth.expression.dto.VerbConjugationForm;
 import com.example.auth.user.entity.AppUser;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -18,6 +15,12 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
+@Table(
+    uniqueConstraints = @UniqueConstraint(
+        name = "uk_expression_user_lang_lemma",
+        columnNames = {"user_id", "lang", "lemma"}
+    )
+)
 public class Expression {
   @Id
   @GeneratedValue(strategy = GenerationType.UUID)
@@ -26,6 +29,10 @@ public class Expression {
   @ManyToOne(fetch = FetchType.LAZY, optional = false)
   @JoinColumn(name = "user_id", nullable = false)
   private AppUser user;
+
+  /** Target language of the video this expression was learned from (= LemmaConjugation.lang). */
+  @Column(nullable = false, length = 16)
+  private String lang;
 
   @Column(nullable = false)
   private String lemma;
@@ -36,15 +43,6 @@ public class Expression {
   @Column(nullable = false)
   @Enumerated(EnumType.STRING)
   private PosType pos;
-
-  @ElementCollection
-  @CollectionTable(
-      name = "expression_conjugation_forms",
-      joinColumns = @JoinColumn(name = "expression_id")
-  )
-  @OrderColumn(name = "sort_order")
-  @Builder.Default
-  private List<VerbConjugationForm> conjugation = new ArrayList<>();
 
   @CreationTimestamp
   @Column(name = "added_at", updatable = false, nullable = false)

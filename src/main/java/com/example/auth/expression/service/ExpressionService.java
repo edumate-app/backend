@@ -7,6 +7,8 @@ import com.example.auth.expression.repository.ExpressionContextRepository;
 import com.example.auth.expression.repository.ExpressionRepository;
 import com.example.auth.nlp.NlpClient;
 import com.example.auth.nlp.dto.AnalyzeRequest;
+import com.example.auth.nlp.entity.LemmaConjugation;
+import com.example.auth.nlp.repository.LemmaConjugationRepository;
 import com.example.auth.user.entity.AppUser;
 import com.example.auth.video.entity.TranscriptSegment;
 import com.example.auth.video.entity.Video;
@@ -28,6 +30,7 @@ public class ExpressionService {
   private final ExpressionRepository expressionRepository;
   private final VideoRepository videoRepository;
   private final ExpressionContextRepository expressionContextRepository;
+  private final LemmaConjugationRepository lemmaConjugationRepository;
 
   public List<WordAnalyzedDto> getAnalysis(AnalyzeRequest request) {
     return nlpClient.getAnalysis(request);
@@ -47,6 +50,7 @@ public class ExpressionService {
 
     TranscriptSegment segment = segments.get(contextIndex);
     Integer startSeconds = segment.getStart().intValue();
+    String lang = video.getTargetLang();
 
     var byLemma = request.expressions().stream()
         .collect(Collectors.groupingBy(
@@ -58,16 +62,16 @@ public class ExpressionService {
     byLemma.forEach((lemma, dtos) -> {
       SaveExpressionDto first = dtos.getFirst();
 
-      Expression expression = expressionRepository.findByUserAndLemma(user, lemma)
+      upsertLemmaConjugation(lang, lemma, first.pos(), first.conjugation());
+
+      Expression expression = expressionRepository.findByUserAndLangAndLemma(user, lang, lemma)
           .orElseGet(() -> expressionRepository.save(
               Expression.builder()
                   .user(user)
+                  .lang(lang)
                   .lemma(lemma)
                   .lemmaTranslation(first.lemmaTranslation())
                   .pos(first.pos())
-                  .conjugation(first.conjugation() != null
-                      ? first.conjugation()
-                      : List.of())
                   .build()
           ));
 
@@ -104,14 +108,36 @@ public class ExpressionService {
   @Transactional(readOnly = true)
   public List<ExpressionDto> getUserExpressions(AppUser user) {
     List<Expression> expressions = expressionRepository.findAllByUser(user);
-    return expressions
+    if (expressions.isEmpty()) {
+      return List.of();
+    }
+
+    Set<String> langs = expressions.stream()
+        .map(Expression::getLang)
+        .collect(Collectors.toSet());
+    Set<String> lemmas = expressions.stream()
+        .map(Expression::getLemma)
+        .collect(Collectors.toSet());
+
+    Map<String, List<VerbConjugationForm>> conjugationsByKey = lemmaConjugationRepository
+        .findByLangInAndLemmaIn(langs, lemmas)
         .stream()
+        .collect(Collectors.toMap(
+            lc -> conjugationKey(lc.getLang(), lc.getLemma()),
+            LemmaConjugation::getForms,
+            (a, b) -> a
+        ));
+
+    return expressions.stream()
         .map(ex -> new ExpressionDto(
             ex.getId(),
             ex.getLemma(),
             ex.getLemmaTranslation(),
             ex.getPos(),
-            ex.getConjugation(),
+            conjugationsByKey.getOrDefault(
+                conjugationKey(ex.getLang(), ex.getLemma()),
+                List.of()
+            ),
             ex.getAddedAt()
         ))
         .toList();
@@ -133,5 +159,36 @@ public class ExpressionService {
             ec.getStartSeconds()
         ))
         .toList();
+  }
+
+  private void upsertLemmaConjugation(
+      String lang,
+      String lemma,
+      PosType pos,
+      List<VerbConjugationForm> forms
+  ) {
+    if (pos != PosType.VERB && pos != PosType.AUX) {
+      return;
+    }
+    if (forms == null || forms.isEmpty()) {
+      return;
+    }
+
+    LemmaConjugation conjugation = lemmaConjugationRepository
+        .findByLangAndLemma(lang, lemma)
+        .orElseGet(() -> LemmaConjugation.builder()
+            .lang(lang)
+            .lemma(lemma)
+            .forms(new ArrayList<>())
+            .build());
+
+    if (conjugation.getForms() == null || conjugation.getForms().isEmpty()) {
+      conjugation.setForms(new ArrayList<>(forms));
+      lemmaConjugationRepository.save(conjugation);
+    }
+  }
+
+  private static String conjugationKey(String lang, String lemma) {
+    return lang + '\0' + lemma;
   }
 }
