@@ -12,10 +12,12 @@ import com.example.auth.nlp.repository.LemmaConjugationRepository;
 import com.example.auth.nlp.service.LemmaConjugationService;
 import com.example.auth.user.entity.AppUser;
 import com.example.auth.video.entity.TranscriptSegment;
+import com.example.auth.video.entity.TranscriptToken;
 import com.example.auth.video.entity.Video;
 import com.example.auth.video.exception.ExpressionNotFoundException;
 import com.example.auth.video.exception.TranscriptSegmentNotFoundException;
 import com.example.auth.video.exception.VideoNotFoundException;
+import com.example.auth.video.repository.TranscriptTokenRepository;
 import com.example.auth.video.repository.VideoRepository;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -33,6 +35,7 @@ public class ExpressionService {
   private final ExpressionContextRepository expressionContextRepository;
   private final LemmaConjugationRepository lemmaConjugationRepository;
   private final LemmaConjugationService lemmaConjugationService;
+  private final TranscriptTokenRepository transcriptTokenRepository;
 
   public List<WordAnalyzedDto> getAnalysis(AnalyzeRequest request) {
     return nlpClient.getAnalysis(request);
@@ -50,8 +53,7 @@ public class ExpressionService {
       throw new TranscriptSegmentNotFoundException(request.video_uuid(), contextIndex);
     }
 
-    TranscriptSegment segment = segments.get(contextIndex);
-    Integer startSeconds = segment.getStart().intValue();
+    TranscriptSegment originSegment = segments.get(contextIndex);
     String lang = video.getTargetLang();
 
     var byLemma = request.expressions().stream()
@@ -60,6 +62,19 @@ public class ExpressionService {
             LinkedHashMap::new,
             Collectors.toList()
         ));
+
+    List<TranscriptToken> tokenHits = transcriptTokenRepository
+        .findByVideoIdAndLemmaIn(video.getId(), byLemma.keySet());
+
+    Map<String, Map<TranscriptSegment, LinkedHashSet<String>>> formsByLemmaAndSegment =
+        new HashMap<>();
+
+    for (TranscriptToken token : tokenHits) {
+      formsByLemmaAndSegment
+          .computeIfAbsent(token.getLemma(), __ -> new LinkedHashMap<>())
+          .computeIfAbsent(token.getSegment(), __ -> new LinkedHashSet<>())
+          .add(token.getText());
+    }
 
     byLemma.forEach((lemma, dtos) -> {
       SaveExpressionDto first = dtos.getFirst();
@@ -77,33 +92,47 @@ public class ExpressionService {
                   .build()
           ));
 
-      List<String> newForms = dtos.stream()
+      List<String> requestForms = dtos.stream()
           .map(SaveExpressionDto::text)
           .filter(Objects::nonNull)
           .distinct()
           .toList();
 
-      ExpressionContext context = expressionContextRepository
-          .findByExpressionAndTranscriptSegment(expression, segment)
-          .orElse(null);
+      Map<TranscriptSegment, LinkedHashSet<String>> formsBySegment =
+          formsByLemmaAndSegment.getOrDefault(lemma, new LinkedHashMap<>());
 
-      if (context != null) {
-        var merged = new LinkedHashSet<>(context.getMatchedForms());
-        merged.addAll(newForms);
-        context.setMatchedForms(new ArrayList<>(merged));
+
+      if (formsBySegment.isEmpty()) {
+        formsBySegment.put(originSegment, new LinkedHashSet<>(requestForms));
       } else {
-        context = ExpressionContext.builder()
-            .expression(expression)
-            .transcriptSegment(segment)
-            .targetSentence(segment.getTargetText())
-            .nativeTranslation(segment.getNativeText())
-            .matchedForms(new ArrayList<>(newForms))
-            .video(video)
-            .startSeconds(startSeconds)
-            .build();
+        formsBySegment
+            .computeIfAbsent(originSegment, __ -> new LinkedHashSet<>())
+            .addAll(requestForms);
       }
 
-      expressionContextRepository.save(context);
+      formsBySegment.forEach((segment, forms) -> {
+        ExpressionContext context = expressionContextRepository
+            .findByExpressionAndTranscriptSegment(expression, segment)
+            .orElse(null);
+
+        if (context != null) {
+          var merged = new LinkedHashSet<>(context.getMatchedForms());
+          merged.addAll(forms);
+          context.setMatchedForms(new ArrayList<>(merged));
+        } else {
+          context = ExpressionContext.builder()
+              .expression(expression)
+              .transcriptSegment(segment)
+              .targetSentence(segment.getTargetText())
+              .nativeTranslation(segment.getNativeText())
+              .matchedForms(new ArrayList<>(forms))
+              .video(video)
+              .startSeconds(segment.getStart().intValue())
+              .build();
+        }
+
+        expressionContextRepository.save(context);
+      });
     });
   }
 
