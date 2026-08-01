@@ -10,6 +10,5 @@ import java.util.UUID;
 
 public interface ExpressionRepository extends JpaRepository<Expression, UUID> {
   List<Expression> findAllByUser(AppUser user);
-
   Optional<Expression> findByUserAndLangAndLemma(AppUser user, String lang, String lemma);
 }

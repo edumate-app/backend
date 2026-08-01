@@ -159,6 +159,17 @@ public class ExpressionService {
             (a, b) -> a
         ));
 
+    Set<UUID> ids = expressions.stream()
+        .map(Expression::getId)
+        .collect(Collectors.toSet());
+    Map<UUID, Integer> contextCountByExpressionId = expressionContextRepository
+        .countByExpressionIds(ids)
+        .stream()
+        .collect(Collectors.toMap(
+            row -> (UUID) row[0],
+            row -> ((Number) row[1]).intValue()
+        ));
+
     return expressions.stream()
         .map(ex -> new ExpressionDto(
             ex.getId(),
@@ -169,7 +180,8 @@ public class ExpressionService {
                 conjugationKey(ex.getLang(), ex.getLemma()),
                 List.of()
             ),
-            ex.getAddedAt()
+            ex.getAddedAt(),
+            contextCountByExpressionId.getOrDefault(ex.getId(), 0)
         ))
         .toList();
   }
