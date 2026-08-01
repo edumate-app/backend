@@ -29,8 +29,9 @@ public class VideoController {
   }
 
   @GetMapping("/transcript/{videoUUID}")
-  public TranscriptResponseDto getTranscript(@PathVariable UUID videoUUID) {
-    return videoService.getTranscript(videoUUID);
+  public TranscriptResponseDto getTranscript(@PathVariable UUID videoUUID,
+                                             @AuthenticationPrincipal AppUser user) {
+    return videoService.getTranscript(videoUUID, user);
   }
 
   @GetMapping
@@ -41,9 +42,10 @@ public class VideoController {
   @PatchMapping("/{videoId}/position")
   public ResponseEntity<Void> updatePosition(
       @PathVariable UUID videoId,
-      @RequestBody UpdatePositionRequest request
+      @RequestBody UpdatePositionRequest request,
+      @AuthenticationPrincipal AppUser user
   ) {
-    videoService.updatePosition(videoId, request.positionSeconds());
+    videoService.updatePosition(videoId, user, request.positionSeconds());
     return ResponseEntity.ok().build();
   }
 }

@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Entity
+@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"video_id", "target_lang"}))
 @Builder
 @Getter
 @AllArgsConstructor
@@ -28,12 +29,6 @@ public class Video {
   private String videoId;
   private int duration;
 
-  private Instant lastOpenedAt;
-  private int lastPositionSeconds;
-
-  @ManyToOne
-  private AppUser user;
-
   @OneToMany(
       mappedBy = "video",
       cascade = CascadeType.ALL,
@@ -44,12 +39,6 @@ public class Video {
   @Builder.Default
   private List<TranscriptSegment> transcriptSegments = new ArrayList<>();
 
-  public void updatePosition(int seconds) {
-    this.lastPositionSeconds = seconds;
-  }
-  public void updateLastOpenedAt() {
-    this.lastOpenedAt = Instant.now();
-  }
   private void addTranscriptSegment(TranscriptSegment segment) {
     transcriptSegments.add(segment);
     segment.setVideo(this);

@@ -12,28 +12,14 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface VideoRepository extends JpaRepository<Video, UUID> {
+
+  Optional<Video> findByVideoIdAndTargetLang(String videoId, String targetLang);
+
   @Query("""
-        select v.targetLang
-        from Video v
-        where v.videoId = :videoId
-          and v.user = :user
-    """)
-  List<String> findTargetLangsByVideoIdAndUser(
-      @Param("videoId") String videoId,
-      @Param("user") AppUser user
-  );
-
-  List<Video> findTop10ByUserOrderByLastOpenedAtDesc(AppUser user);
-  @Modifying
-  @Query("UPDATE Video v SET v.lastOpenedAt = CURRENT_TIMESTAMP WHERE v.id = :videoId")
-  int updateLastOpenedAt(@Param("videoId") UUID videoId);
-
-  @Modifying
-  @Query("UPDATE Video v SET v.lastPositionSeconds = :position, v.lastOpenedAt = CURRENT_TIMESTAMP WHERE v.id = :videoId")
-  int updatePositionAndLastOpened(@Param("videoId") UUID videoId, @Param("position") int positionSeconds);
-
-  @Query("SELECT v FROM Video v LEFT JOIN FETCH v.transcriptSegments ts WHERE v.id = :videoId ORDER BY ts.start")
+      SELECT v FROM Video v
+      LEFT JOIN FETCH v.transcriptSegments ts
+      WHERE v.id = :videoId
+      ORDER BY ts.start
+      """)
   Optional<Video> findByIdWithSegments(@Param("videoId") UUID videoId);
-
-  List<Video> findAllByUser(AppUser user);
 }
