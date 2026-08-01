@@ -1,11 +1,7 @@
 package com.example.auth.expression.controller;
 
-import com.example.auth.expression.dto.ContextDto;
-import com.example.auth.expression.dto.ExpressionDto;
-import com.example.auth.expression.dto.SaveExpressionRequest;
-import com.example.auth.expression.dto.WordAnalyzedDto;
+import com.example.auth.expression.dto.*;
 import com.example.auth.expression.service.ExpressionService;
-import com.example.auth.nlp.dto.AnalyzeRequest;
 import com.example.auth.user.entity.AppUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;

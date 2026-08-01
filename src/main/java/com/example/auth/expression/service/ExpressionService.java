@@ -6,7 +6,7 @@ import com.example.auth.expression.entity.ExpressionContext;
 import com.example.auth.expression.repository.ExpressionContextRepository;
 import com.example.auth.expression.repository.ExpressionRepository;
 import com.example.auth.nlp.NlpClient;
-import com.example.auth.nlp.dto.AnalyzeRequest;
+import com.example.auth.nlp.dto.NlpAnalyzeRequest;
 import com.example.auth.nlp.entity.LemmaConjugation;
 import com.example.auth.nlp.repository.LemmaConjugationRepository;
 import com.example.auth.nlp.service.LemmaConjugationService;
@@ -17,6 +17,7 @@ import com.example.auth.video.entity.Video;
 import com.example.auth.video.exception.ExpressionNotFoundException;
 import com.example.auth.video.exception.TranscriptSegmentNotFoundException;
 import com.example.auth.video.exception.VideoNotFoundException;
+import com.example.auth.video.repository.TranscriptSegmentRepository;
 import com.example.auth.video.repository.TranscriptTokenRepository;
 import com.example.auth.video.repository.VideoRepository;
 import lombok.AllArgsConstructor;
@@ -36,9 +37,77 @@ public class ExpressionService {
   private final LemmaConjugationRepository lemmaConjugationRepository;
   private final LemmaConjugationService lemmaConjugationService;
   private final TranscriptTokenRepository transcriptTokenRepository;
+  private final TranscriptSegmentRepository transcriptSegmentRepository;
 
+  @Transactional
   public List<WordAnalyzedDto> getAnalysis(AnalyzeRequest request) {
-    return nlpClient.getAnalysis(request);
+    TranscriptSegment segment = null;
+    if (request.transcriptSegmentUUID() != null) {
+      segment = transcriptSegmentRepository
+          .findByIdWithTokens(request.transcriptSegmentUUID())
+          .orElse(null);
+      if (segment != null && !segment.getTokens().isEmpty()) {
+        return mapTokensToAnalyzed(segment.getTokens(), request.lang());
+      }
+    }
+
+    List<WordAnalyzedDto> words = nlpClient.getAnalysis(
+        new NlpAnalyzeRequest(request.text(), request.lang())
+    );
+    if (words == null || words.isEmpty()) {
+      return List.of();
+    }
+
+    if (segment != null) {
+      for (int i = 0; i < words.size(); i++) {
+        WordAnalyzedDto word = words.get(i);
+        segment.addToken(TranscriptToken.builder()
+            .tokenIndex(i)
+            .text(word.text())
+            .lemma(word.lemma())
+            .pos(word.pos())
+            .person(word.person())
+            .number(word.number())
+            .tense(word.tense())
+            .mood(word.mood())
+            .gender(word.gender())
+            .build());
+        lemmaConjugationService.upsert(
+            request.lang(), word.lemma(), word.pos(), word.conjugation()
+        );
+      }
+      transcriptSegmentRepository.save(segment);
+    }
+
+    return words;
+  }
+
+  private List<WordAnalyzedDto> mapTokensToAnalyzed(List<TranscriptToken> tokens, String lang) {
+    Set<String> lemmas = tokens.stream()
+        .map(TranscriptToken::getLemma)
+        .collect(Collectors.toSet());
+    Map<String, List<VerbConjugationForm>> conjugationsByLemma = lemmaConjugationRepository
+        .findByLangInAndLemmaIn(Set.of(lang), lemmas)
+        .stream()
+        .collect(Collectors.toMap(
+            LemmaConjugation::getLemma,
+            LemmaConjugation::getForms,
+            (a, b) -> a
+        ));
+    return tokens.stream()
+        .sorted(Comparator.comparing(TranscriptToken::getTokenIndex))
+        .map(t -> new WordAnalyzedDto(
+            t.getText(),
+            t.getLemma(),
+            t.getPos(),
+            t.getNumber(),
+            t.getPerson(),
+            t.getTense(),
+            t.getMood(),
+            t.getGender(),
+            conjugationsByLemma.getOrDefault(t.getLemma(), List.of())
+        ))
+        .toList();
   }
 
   @Transactional

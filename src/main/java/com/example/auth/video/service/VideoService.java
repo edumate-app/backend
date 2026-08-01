@@ -4,6 +4,7 @@ import com.example.auth.common.AfterCommit;
 import com.example.auth.nlp.NlpClient;
 import com.example.auth.nlp.dto.NlpLanguageDto;
 import com.example.auth.nlp.dto.NlpTranscriptRequest;
+import com.example.auth.nlp.dto.NlpTranscriptSegmentDto;
 import com.example.auth.nlp.dto.VideoInfo;
 import com.example.auth.video.dto.*;
 import com.example.auth.video.entity.TranscriptSegment;
@@ -153,7 +154,7 @@ public class VideoService {
       log.debug("Calling NLP service with videoId: {}, targetLang: {}, nativeLang: {}",
           videoId, video.getTargetLang(), nativeLang);
 
-      List<TranscriptSegmentDto> segmentsDto = nlpClient.getTranscript(videoId, request);
+      List<NlpTranscriptSegmentDto> segmentsDto = nlpClient.getTranscript(videoId, request);
 
       log.info("Received {} segments from NLP service for video: {}", segmentsDto.size(), video_uuid);
 
@@ -178,7 +179,16 @@ public class VideoService {
 
       // 7: Return transcript from NLP service
       return new TranscriptResponseDto(
-          segmentsDto,
+          nlpSegments
+              .stream()
+              .map(s -> new TranscriptSegmentDto(
+                  s.getId(),
+                  s.getNativeText(),
+                  s.getTargetText(),
+                  s.getStart(),
+                  s.getDuration()
+              ))
+              .toList(),
           videoId,
           userVideo.getLastPositionSeconds(),
           video.getTargetLang()
@@ -190,6 +200,7 @@ public class VideoService {
     return new TranscriptResponseDto(
         segments.stream()
             .map(s -> new TranscriptSegmentDto(
+                s.getId(),
                 s.getNativeText(),
                 s.getTargetText(),
                 s.getStart(),

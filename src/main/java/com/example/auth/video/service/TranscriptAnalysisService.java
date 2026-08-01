@@ -2,7 +2,7 @@ package com.example.auth.video.service;
 
 import com.example.auth.expression.dto.WordAnalyzedDto;
 import com.example.auth.nlp.NlpClient;
-import com.example.auth.nlp.dto.AnalyzeRequest;
+import com.example.auth.nlp.dto.NlpAnalyzeRequest;
 import com.example.auth.nlp.dto.InstallStatus;
 import com.example.auth.nlp.dto.InstallStatusResponse;
 import com.example.auth.nlp.service.LemmaConjugationService;
@@ -141,7 +141,7 @@ public class TranscriptAnalysisService {
       return false;
     }
 
-    List<WordAnalyzedDto> words = nlpClient.getAnalysis(new AnalyzeRequest(text, lang));
+    List<WordAnalyzedDto> words = nlpClient.getAnalysis(new NlpAnalyzeRequest(text, lang));
     if (words == null || words.isEmpty()) {
       return false;
     }

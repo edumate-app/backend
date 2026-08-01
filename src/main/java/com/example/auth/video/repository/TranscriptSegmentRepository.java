@@ -19,7 +19,7 @@ public interface TranscriptSegmentRepository extends JpaRepository<TranscriptSeg
   List<UUID> findIdsWithoutTokensByVideoId(@Param("videoId") UUID videoId);
 
   @Query("""
-      SELECT s FROM TranscriptSegment s
+      SELECT DISTINCT s FROM TranscriptSegment s
       LEFT JOIN FETCH s.tokens
       WHERE s.id = :segmentId
       """)

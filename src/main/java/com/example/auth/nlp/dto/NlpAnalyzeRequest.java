@@ -1,6 +1,6 @@
 package com.example.auth.nlp.dto;
 
-public record AnalyzeRequest(
+public record NlpAnalyzeRequest(
     String text,
     String lang
 ) {
