@@ -2,6 +2,7 @@ package com.example.auth.nlp;
 
 import com.example.auth.expression.dto.WordAnalyzedDto;
 import com.example.auth.nlp.dto.AnalyzeRequest;
+import com.example.auth.nlp.dto.InstallStatusResponse;
 import com.example.auth.nlp.dto.NlpLanguageDto;
 import com.example.auth.nlp.dto.NlpTranscriptRequest;
 import com.example.auth.nlp.dto.VideoInfo;
@@ -40,6 +41,23 @@ public class NlpClient {
         .block();
   }
 
+  public InstallStatusResponse getInstallStatus(String lang) {
+    return webClient.get()
+        .uri("/install/status/{lang}", lang)
+        .retrieve()
+        .bodyToMono(InstallStatusResponse.class)
+        .timeout(Duration.ofSeconds(10))
+        .block();
+  }
+
+  public void installLanguage(String lang) {
+    webClient.post()
+        .uri("/install/{lang}", lang)
+        .retrieve()
+        .toBodilessEntity()
+        .timeout(Duration.ofSeconds(15))
+        .block();
+  }
 
   public List<NlpLanguageDto> getAvailableLang(String videoId) {
     return webClient.get()
