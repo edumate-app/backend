@@ -10,6 +10,6 @@ public record ContextDto(
     UUID video_uuid,
     String videoTitle,
     List<String> matchedForms,
-    Integer startSeconds
+    Double startSeconds
 ) {
 }

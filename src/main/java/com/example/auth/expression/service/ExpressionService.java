@@ -197,7 +197,7 @@ public class ExpressionService {
               .nativeTranslation(segment.getNativeText())
               .matchedForms(new ArrayList<>(forms))
               .video(video)
-              .startSeconds(segment.getStart().intValue())
+              .startSeconds(segment.getStart())
               .build();
         }
 

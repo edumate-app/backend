@@ -64,7 +64,7 @@ public class ExpressionContext {
   private Video video;
 
   @Column(nullable = false)
-  private Integer startSeconds;
+  private Double startSeconds;
 
   @CreationTimestamp
   @Column(name = "saved_at", updatable = false, nullable = false)
