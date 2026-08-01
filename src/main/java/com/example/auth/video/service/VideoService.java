@@ -1,5 +1,6 @@
 package com.example.auth.video.service;
 
+import com.example.auth.common.AfterCommit;
 import com.example.auth.nlp.NlpClient;
 import com.example.auth.nlp.dto.NlpLanguageDto;
 import com.example.auth.nlp.dto.NlpTranscriptRequest;
@@ -34,6 +35,7 @@ public class VideoService {
   private final NlpClient nlpClient;
   private final VideoRepository videoRepository;
   private final UserVideoRepository userVideoRepository;
+  private final TranscriptAnalysisService transcriptAnalysisService;
   private static final Logger log = LoggerFactory.getLogger(VideoService.class);
 
   public List<LanguageDto> getAvailableLang(String url, AppUser user) {
@@ -57,6 +59,9 @@ public class VideoService {
   @Transactional
   public ImportResponse importVideo(String url, String targetLang, AppUser user) {
     String videoId = extractVideoId(url);
+    // boolean[] instead of boolean to avoid "Variable used in lambda expression should be final or effectively final"
+    boolean[] createdWithSegments = {false};
+
     Video video = videoRepository.findByVideoIdAndTargetLang(videoId, targetLang)
         .orElseGet(() -> {
           VideoInfo info = nlpClient.getVideoInfo(videoId);
@@ -83,6 +88,7 @@ public class VideoService {
                   .toList();
 
               v.addTranscriptSegments(segments);
+              createdWithSegments[0] = !segments.isEmpty();
             }
           } catch (Exception e) {
             // If the transcript could not be retrieved, continue - it will be fetched later as a fallback
@@ -102,6 +108,10 @@ public class VideoService {
                 .lastPositionSeconds(0)
                 .build()
         ));
+
+    if (createdWithSegments[0]) {
+      scheduleTranscriptAnalysis(video.getId());
+    }
 
     return new ImportResponse(video.getId());
   }
@@ -162,6 +172,10 @@ public class VideoService {
 
       log.info("Successfully saved {} segments to database for video: {}", nlpSegments.size(), video_uuid);
 
+      if (!nlpSegments.isEmpty()) {
+        scheduleTranscriptAnalysis(video.getId());
+      }
+
       // 7: Return transcript from NLP service
       return new TranscriptResponseDto(
           segmentsDto,
@@ -208,7 +222,7 @@ public class VideoService {
   }
 
   @Transactional
-  public void updatePosition(UUID videoId, AppUser user,int positionSeconds) {
+  public void updatePosition(UUID videoId, AppUser user, int positionSeconds) {
     log.info("Updating position for video: {} to {}", videoId, positionSeconds);
 
     int updatedRows = userVideoRepository.updatePositionAndLastOpened(videoId, user, positionSeconds);
@@ -216,6 +230,10 @@ public class VideoService {
     if (updatedRows == 0) {
       throw new VideoNotFoundException(videoId);
     }
+  }
+
+  private void scheduleTranscriptAnalysis(UUID videoId) {
+    AfterCommit.run(() -> transcriptAnalysisService.analyzeVideoAsync(videoId));
   }
 
   private String extractVideoId(String url) {
