@@ -37,4 +37,17 @@ public class ExpressionController {
                                       @AuthenticationPrincipal AppUser user) {
     return expressionService.getContexts(user, expressionId);
   }
+
+  @DeleteMapping("/{expressionId}")
+  public void deleteExpression(@PathVariable UUID expressionId,
+                               @AuthenticationPrincipal AppUser user) {
+    expressionService.deleteExpression(user, expressionId);
+  }
+
+  @DeleteMapping("/{expressionId}/context/{contextId}")
+  public void deleteContext(@PathVariable UUID expressionId,
+                            @PathVariable UUID contextId,
+                            @AuthenticationPrincipal AppUser user) {
+    expressionService.deleteContext(user, expressionId, contextId);
+  }
 }

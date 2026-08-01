@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 public record ContextDto(
+    UUID id,
     String targetSentence,
     String nativeTranslation,
     UUID video_uuid,

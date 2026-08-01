@@ -3,6 +3,7 @@ package com.example.auth.expression.service;
 import com.example.auth.expression.dto.*;
 import com.example.auth.expression.entity.Expression;
 import com.example.auth.expression.entity.ExpressionContext;
+import com.example.auth.expression.exception.ContextNotFoundException;
 import com.example.auth.expression.repository.ExpressionContextRepository;
 import com.example.auth.expression.repository.ExpressionRepository;
 import com.example.auth.nlp.NlpClient;
@@ -263,6 +264,7 @@ public class ExpressionService {
 
     return expressionContextRepository.findAllByExpressionIdWithVideo(expression.getId()).stream()
         .map(ec -> new ContextDto(
+            ec.getId(),
             ec.getTargetSentence(),
             ec.getNativeTranslation(),
             ec.getVideo().getId(),
@@ -271,6 +273,31 @@ public class ExpressionService {
             ec.getStartSeconds()
         ))
         .toList();
+  }
+
+  @Transactional
+  public void deleteExpression(AppUser user, UUID expressionId) {
+    Expression expression = expressionRepository.findById(expressionId)
+        .filter(e -> e.getUser().getId().equals(user.getId()))
+        .orElseThrow(() -> new ExpressionNotFoundException(expressionId));
+
+    List<ExpressionContext> contexts =
+        expressionContextRepository.findAllByExpressionIdWithVideo(expressionId);
+    expressionContextRepository.deleteAll(contexts);
+    expressionRepository.delete(expression);
+  }
+
+  @Transactional
+  public void deleteContext(AppUser user, UUID expressionId, UUID contextId) {
+    Expression expression = expressionRepository.findById(expressionId)
+        .filter(e -> e.getUser().getId().equals(user.getId()))
+        .orElseThrow(() -> new ExpressionNotFoundException(expressionId));
+
+    ExpressionContext context = expressionContextRepository.findById(contextId)
+        .filter(c -> c.getExpression().getId().equals(expression.getId()))
+        .orElseThrow(() -> new ContextNotFoundException(contextId));
+
+    expressionContextRepository.delete(context);
   }
 
   private static String conjugationKey(String lang, String lemma) {
