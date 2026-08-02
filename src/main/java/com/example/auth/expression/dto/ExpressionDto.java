@@ -9,6 +9,7 @@ public record ExpressionDto (
     String lemma,
     String lemmaTranslation,
     PosType pos,
+    String lang,
     List<VerbConjugationForm> conjugation,
     LocalDateTime addedAt,
     int contextCount

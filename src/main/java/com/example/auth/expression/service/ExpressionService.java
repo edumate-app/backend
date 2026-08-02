@@ -207,10 +207,10 @@ public class ExpressionService {
   }
 
   @Transactional(readOnly = true)
-  public List<ExpressionDto> getUserExpressions(AppUser user) {
+  public ExpressionListResponse getUserExpressions(AppUser user) {
     List<Expression> expressions = expressionRepository.findAllByUser(user);
     if (expressions.isEmpty()) {
-      return List.of();
+      return new ExpressionListResponse(List.of(), List.of());
     }
 
     Set<String> langs = expressions.stream()
@@ -240,20 +240,37 @@ public class ExpressionService {
             row -> ((Number) row[1]).intValue()
         ));
 
-    return expressions.stream()
-        .map(ex -> new ExpressionDto(
-            ex.getId(),
-            ex.getLemma(),
-            ex.getLemmaTranslation(),
-            ex.getPos(),
-            conjugationsByKey.getOrDefault(
-                conjugationKey(ex.getLang(), ex.getLemma()),
-                List.of()
-            ),
-            ex.getAddedAt(),
-            contextCountByExpressionId.getOrDefault(ex.getId(), 0)
-        ))
-        .toList();
+    List<String> languages = new ArrayList<>();
+
+    String nativeLang = user.getNativeLang();
+    if (nativeLang != null && !nativeLang.isBlank()) {
+      languages.add(nativeLang);
+    }
+
+    for (String lang : langs) {
+      if (!languages.contains(lang)) {
+        languages.add(lang);
+      }
+    }
+
+    return new ExpressionListResponse(
+        expressions.stream()
+          .map(ex -> new ExpressionDto(
+              ex.getId(),
+              ex.getLemma(),
+              ex.getLemmaTranslation(),
+              ex.getPos(),
+              ex.getLang(),
+              conjugationsByKey.getOrDefault(
+                  conjugationKey(ex.getLang(), ex.getLemma()),
+                  List.of()
+              ),
+              ex.getAddedAt(),
+              contextCountByExpressionId.getOrDefault(ex.getId(), 0)
+          ))
+          .toList(),
+        languages
+    );
   }
 
   @Transactional(readOnly = true)

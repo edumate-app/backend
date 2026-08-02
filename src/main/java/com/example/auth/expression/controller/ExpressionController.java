@@ -28,7 +28,7 @@ public class ExpressionController {
   }
 
   @GetMapping
-  public List<ExpressionDto> getExpressions (@AuthenticationPrincipal AppUser user) {
+  public ExpressionListResponse getExpressions (@AuthenticationPrincipal AppUser user) {
     return expressionService.getUserExpressions(user);
   }
 
