@@ -34,6 +34,13 @@ public class VideoController {
     return videoService.getTranscript(videoUUID, user);
   }
 
+  @DeleteMapping("/{videoUUID}")
+  public ResponseEntity<Void> removeVideo(@PathVariable UUID videoUUID,
+                          @AuthenticationPrincipal AppUser user) {
+    videoService.removeVideo(videoUUID, user);
+    return ResponseEntity.noContent().build();
+  }
+
   @GetMapping
   public List<VideoDto> getVideos(@AuthenticationPrincipal AppUser user) {
     return videoService.getVideos(user);

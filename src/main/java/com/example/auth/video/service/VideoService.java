@@ -39,6 +39,14 @@ public class VideoService {
   private final TranscriptAnalysisService transcriptAnalysisService;
   private static final Logger log = LoggerFactory.getLogger(VideoService.class);
 
+  @Transactional
+  public void removeVideo(UUID videoId, AppUser user) {
+    int deleted = userVideoRepository.deleteByUserAndVideo_Id(videoId, user);
+    if (deleted == 0) {
+      throw new VideoNotFoundException(videoId);
+    }
+  }
+
   public List<LanguageDto> getAvailableLang(String url, AppUser user) {
     String videoId = extractVideoId(url);
 

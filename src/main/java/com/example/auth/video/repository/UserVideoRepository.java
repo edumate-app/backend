@@ -26,6 +26,13 @@ public interface UserVideoRepository extends JpaRepository<UserVideo, UUID> {
       @Param("user") AppUser user
   );
 
+  @Modifying
+  @Query("""
+    DELETE FROM UserVideo uv
+    WHERE uv.video.id = :videoId AND uv.user = :user
+    """)
+  int deleteByUserAndVideo_Id(@Param("videoId") UUID videoId, @Param("user") AppUser user);
+
   @Query("""
       select uv from UserVideo uv
       join fetch uv.video v
