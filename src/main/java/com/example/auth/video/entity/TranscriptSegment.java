@@ -19,9 +19,6 @@ public class TranscriptSegment {
   private UUID id;
 
   @Column(nullable = false, length = 1000)
-  private String nativeText;
-
-  @Column(nullable = false, length = 1000)
   private String targetText;
 
   @Column(nullable = false)
@@ -44,6 +41,15 @@ public class TranscriptSegment {
   @Builder.Default
   private List<TranscriptToken> tokens = new ArrayList<>();
 
+  @OneToMany(
+      mappedBy = "segment",
+      cascade = CascadeType.ALL,
+      orphanRemoval = true,
+      fetch = FetchType.LAZY
+  )
+  @Builder.Default
+  private List<SegmentNativeTranslation> nativeTranslations = new ArrayList<>();
+
   public void addToken(TranscriptToken token) {
     tokens.add(token);
     token.setSegment(this);
@@ -54,5 +60,10 @@ public class TranscriptSegment {
       return;
     }
     tokensToAdd.forEach(this::addToken);
+  }
+
+  public void addNativeTranslation(SegmentNativeTranslation translation) {
+    nativeTranslations.add(translation);
+    translation.setSegment(this);
   }
 }

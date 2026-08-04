@@ -7,6 +7,7 @@ import com.example.auth.nlp.dto.NlpTranscriptRequest;
 import com.example.auth.nlp.dto.NlpTranscriptSegmentDto;
 import com.example.auth.nlp.dto.VideoInfo;
 import com.example.auth.video.dto.*;
+import com.example.auth.video.entity.SegmentNativeTranslation;
 import com.example.auth.video.entity.TranscriptSegment;
 import com.example.auth.video.entity.UserVideo;
 import com.example.auth.video.exception.InvalidVideoUrlException;
@@ -14,6 +15,7 @@ import com.example.auth.video.exception.NativeLanguageNotSetException;
 import com.example.auth.video.exception.VideoNotFoundException;
 import com.example.auth.user.entity.AppUser;
 import com.example.auth.video.entity.Video;
+import com.example.auth.video.repository.SegmentNativeTranslationRepository;
 import com.example.auth.video.repository.UserVideoRepository;
 import com.example.auth.video.repository.VideoRepository;
 import lombok.AllArgsConstructor;
@@ -23,10 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -37,6 +36,7 @@ public class VideoService {
   private final VideoRepository videoRepository;
   private final UserVideoRepository userVideoRepository;
   private final TranscriptAnalysisService transcriptAnalysisService;
+  private final SegmentNativeTranslationRepository segmentNativeTranslationRepository;
   private static final Logger log = LoggerFactory.getLogger(VideoService.class);
 
   @Transactional
@@ -88,12 +88,7 @@ public class VideoService {
               NlpTranscriptRequest request = new NlpTranscriptRequest(targetLang, nativeLang);
               List<TranscriptSegment> segments = nlpClient.getTranscript(videoId, request)
                   .stream()
-                  .map(segment -> TranscriptSegment.builder()
-                      .nativeText(segment.nativeText())
-                      .targetText(segment.targetText())
-                      .start(segment.start())
-                      .duration(segment.duration())
-                      .build())
+                  .map(dto -> toSegmentWithTranslation(dto, nativeLang))
                   .toList();
 
               v.addTranscriptSegments(segments);
@@ -152,8 +147,8 @@ public class VideoService {
     // 4: Check if segments exist in database
     List<TranscriptSegment> segments = video.getTranscriptSegments();
 
+    // Step 5: No segments found - fallback to NLP service
     if (segments == null || segments.isEmpty()) {
-      // Step 5: No segments found - fallback to NLP service
       log.info("No transcript found in database for video: {}. Fetching from NLP service...", video_uuid);
 
       String videoId = video.getVideoId();
@@ -169,13 +164,9 @@ public class VideoService {
       // 6: Save nlpSegments to DB
       List<TranscriptSegment> nlpSegments = segmentsDto
           .stream()
-          .map(segment -> TranscriptSegment.builder()
-              .nativeText(segment.nativeText())
-              .targetText(segment.targetText())
-              .start(segment.start())
-              .duration(segment.duration())
-              .build())
+          .map(dto -> toSegmentWithTranslation(dto, nativeLang))
           .toList();
+
       video.addTranscriptSegments(nlpSegments);
       videoRepository.save(video);
 
@@ -186,39 +177,106 @@ public class VideoService {
       }
 
       // 7: Return transcript from NLP service
-      return new TranscriptResponseDto(
-          nlpSegments
-              .stream()
-              .map(s -> new TranscriptSegmentDto(
-                  s.getId(),
-                  s.getNativeText(),
-                  s.getTargetText(),
-                  s.getStart(),
-                  s.getDuration()
-              ))
-              .toList(),
-          videoId,
-          userVideo.getLastPositionSeconds(),
-          video.getTargetLang()
-      );
+      return toTranscriptResponse(nlpSegments, loadNativeTextsFromSegments(nlpSegments, nativeLang),
+          videoId, userVideo.getLastPositionSeconds(), video.getTargetLang());
     }
 
     // 8: Return existing segments from database
     log.info("Returning {} segments from database for video: {}", segments.size(), video_uuid);
+
+    long translationCount = segmentNativeTranslationRepository
+        .countBySegment_Video_IdAndNativeLang(video.getId(), nativeLang);
+
+    if (translationCount == 0) {
+      log.info("No native translations for lang '{}' on video: {}. Fetching from NLP...",
+          nativeLang, video_uuid);
+
+      List<NlpTranscriptSegmentDto> segmentsDto = nlpClient.getTranscript(
+          video.getVideoId(),
+          new NlpTranscriptRequest(video.getTargetLang(), nativeLang)
+      );
+
+      attachNativeTranslations(segments, segmentsDto, nativeLang);
+      videoRepository.save(video);
+    }
+
+    Map<UUID, String> nativeBySegmentId = loadNativeTexts(video.getId(), nativeLang);
+
+    return toTranscriptResponse(segments, loadNativeTextsFromSegments(segments, nativeLang),
+        video.getVideoId(), userVideo.getLastPositionSeconds(), video.getTargetLang());
+  }
+
+  private void attachNativeTranslations(
+      List<TranscriptSegment> existing,
+      List<NlpTranscriptSegmentDto> fromNlp,
+      String nativeLang
+  ) {
+    int n = Math.min(existing.size(), fromNlp.size());
+    for (int i = 0; i < n; i++) {
+      existing.get(i).addNativeTranslation(SegmentNativeTranslation.builder()
+          .nativeLang(nativeLang)
+          .nativeText(fromNlp.get(i).nativeText())
+          .build());
+    }
+  }
+
+  private TranscriptResponseDto toTranscriptResponse(
+      List<TranscriptSegment> segments,
+      Map<UUID, String> nativeBySegmentId,
+      String videoId,
+      int lastPositionSeconds,
+      String targetLang
+  ) {
     return new TranscriptResponseDto(
         segments.stream()
             .map(s -> new TranscriptSegmentDto(
                 s.getId(),
-                s.getNativeText(),
+                nativeBySegmentId.getOrDefault(s.getId(), ""),
                 s.getTargetText(),
                 s.getStart(),
                 s.getDuration()
             ))
             .toList(),
-        video.getVideoId(),
-        userVideo.getLastPositionSeconds(),
-        video.getTargetLang()
+        videoId,
+        lastPositionSeconds,
+        targetLang
     );
+  }
+
+  private Map<UUID, String> loadNativeTexts(UUID videoId, String nativeLang) {
+    Map<UUID, String> result = new HashMap<>();
+    for (SegmentNativeTranslation t : segmentNativeTranslationRepository
+        .findBySegment_Video_IdAndNativeLang(videoId, nativeLang)) {
+      result.put(t.getSegment().getId(), t.getNativeText());
+    }
+    return result;
+  }
+
+  private Map<UUID, String> loadNativeTextsFromSegments(
+      List<TranscriptSegment> segments,
+      String nativeLang
+  ) {
+    Map<UUID, String> result = new HashMap<>();
+    for (TranscriptSegment s : segments) {
+      s.getNativeTranslations().stream()
+          .filter(t -> nativeLang.equals(t.getNativeLang()))
+          .findFirst()
+          .ifPresent(t -> result.put(s.getId(), t.getNativeText()));
+    }
+    return result;
+  }
+
+  private TranscriptSegment toSegmentWithTranslation(NlpTranscriptSegmentDto dto, String nativeLang) {
+    TranscriptSegment segment = TranscriptSegment.builder()
+        .targetText(dto.targetText())
+        .start(dto.start())
+        .duration(dto.duration())
+        .build();
+    segment.addNativeTranslation(SegmentNativeTranslation.builder()
+        .nativeLang(nativeLang)
+        .nativeText(dto.nativeText())
+        .build());
+    return segment;
   }
 
   public List<VideoDto> getVideos(AppUser user) {

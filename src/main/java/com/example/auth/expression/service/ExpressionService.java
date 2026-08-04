@@ -12,12 +12,15 @@ import com.example.auth.nlp.entity.LemmaConjugation;
 import com.example.auth.nlp.repository.LemmaConjugationRepository;
 import com.example.auth.nlp.service.LemmaConjugationService;
 import com.example.auth.user.entity.AppUser;
+import com.example.auth.video.entity.SegmentNativeTranslation;
 import com.example.auth.video.entity.TranscriptSegment;
 import com.example.auth.video.entity.TranscriptToken;
 import com.example.auth.video.entity.Video;
 import com.example.auth.video.exception.ExpressionNotFoundException;
+import com.example.auth.video.exception.NativeLanguageNotSetException;
 import com.example.auth.video.exception.TranscriptSegmentNotFoundException;
 import com.example.auth.video.exception.VideoNotFoundException;
+import com.example.auth.video.repository.SegmentNativeTranslationRepository;
 import com.example.auth.video.repository.TranscriptSegmentRepository;
 import com.example.auth.video.repository.TranscriptTokenRepository;
 import com.example.auth.video.repository.VideoRepository;
@@ -39,6 +42,7 @@ public class ExpressionService {
   private final LemmaConjugationService lemmaConjugationService;
   private final TranscriptTokenRepository transcriptTokenRepository;
   private final TranscriptSegmentRepository transcriptSegmentRepository;
+  private final SegmentNativeTranslationRepository segmentNativeTranslationRepository;
 
   @Transactional
   public List<WordAnalyzedDto> getAnalysis(AnalyzeRequest request) {
@@ -125,6 +129,11 @@ public class ExpressionService {
 
     TranscriptSegment originSegment = segments.get(contextIndex);
     String lang = video.getTargetLang();
+    String nativeLang = user.getNativeLang();
+    if (nativeLang == null) {
+      throw new NativeLanguageNotSetException();
+    }
+    Map<UUID, String> nativeBySegmentId = loadNativeTexts(video.getId(), nativeLang);
 
     var byLemma = request.expressions().stream()
         .collect(Collectors.groupingBy(
@@ -194,7 +203,7 @@ public class ExpressionService {
               .expression(expression)
               .transcriptSegment(segment)
               .targetSentence(segment.getTargetText())
-              .nativeTranslation(segment.getNativeText())
+              .nativeTranslation(nativeBySegmentId.getOrDefault(segment.getId(), ""))
               .matchedForms(new ArrayList<>(forms))
               .video(video)
               .startSeconds(segment.getStart())
@@ -204,6 +213,15 @@ public class ExpressionService {
         expressionContextRepository.save(context);
       });
     });
+  }
+
+  private Map<UUID, String> loadNativeTexts(UUID videoId, String nativeLang) {
+    Map<UUID, String> result = new HashMap<>();
+    for (SegmentNativeTranslation t : segmentNativeTranslationRepository
+        .findBySegment_Video_IdAndNativeLang(videoId, nativeLang)) {
+      result.put(t.getSegment().getId(), t.getNativeText());
+    }
+    return result;
   }
 
   @Transactional(readOnly = true)
