@@ -8,8 +8,6 @@ import com.example.auth.expression.repository.ExpressionContextRepository;
 import com.example.auth.expression.repository.ExpressionRepository;
 import com.example.auth.nlp.NlpClient;
 import com.example.auth.nlp.dto.NlpAnalyzeRequest;
-import com.example.auth.nlp.entity.LemmaConjugation;
-import com.example.auth.nlp.repository.LemmaConjugationRepository;
 import com.example.auth.nlp.service.LemmaConjugationService;
 import com.example.auth.user.entity.AppUser;
 import com.example.auth.video.entity.SegmentNativeTranslation;
@@ -38,7 +36,6 @@ public class ExpressionService {
   private final ExpressionRepository expressionRepository;
   private final VideoRepository videoRepository;
   private final ExpressionContextRepository expressionContextRepository;
-  private final LemmaConjugationRepository lemmaConjugationRepository;
   private final LemmaConjugationService lemmaConjugationService;
   private final TranscriptTokenRepository transcriptTokenRepository;
   private final TranscriptSegmentRepository transcriptSegmentRepository;
@@ -91,14 +88,10 @@ public class ExpressionService {
     Set<String> lemmas = tokens.stream()
         .map(TranscriptToken::getLemma)
         .collect(Collectors.toSet());
-    Map<String, List<VerbConjugationForm>> conjugationsByLemma = lemmaConjugationRepository
-        .findByLangInAndLemmaIn(Set.of(lang), lemmas)
-        .stream()
-        .collect(Collectors.toMap(
-            LemmaConjugation::getLemma,
-            LemmaConjugation::getForms,
-            (a, b) -> a
-        ));
+
+    Map<String, List<VerbConjugationForm>> conjugationsByLemma =
+        lemmaConjugationService.getConjugationsByLemma(lang, lemmas);
+
     return tokens.stream()
         .sorted(Comparator.comparing(TranscriptToken::getTokenIndex))
         .map(t -> new WordAnalyzedDto(
@@ -238,14 +231,8 @@ public class ExpressionService {
         .map(Expression::getLemma)
         .collect(Collectors.toSet());
 
-    Map<String, List<VerbConjugationForm>> conjugationsByKey = lemmaConjugationRepository
-        .findByLangInAndLemmaIn(langs, lemmas)
-        .stream()
-        .collect(Collectors.toMap(
-            lc -> conjugationKey(lc.getLang(), lc.getLemma()),
-            LemmaConjugation::getForms,
-            (a, b) -> a
-        ));
+    Map<String, List<VerbConjugationForm>> conjugationsByKey =
+        lemmaConjugationService.getConjugationsByLangAndLemma(langs, lemmas);
 
     Set<UUID> ids = expressions.stream()
         .map(Expression::getId)
@@ -280,7 +267,7 @@ public class ExpressionService {
               ex.getPos(),
               ex.getLang(),
               conjugationsByKey.getOrDefault(
-                  conjugationKey(ex.getLang(), ex.getLemma()),
+                  LemmaConjugationService.conjugationKey(ex.getLang(), ex.getLemma()),
                   List.of()
               ),
               ex.getAddedAt(),
@@ -333,9 +320,5 @@ public class ExpressionService {
         .orElseThrow(() -> new ContextNotFoundException(contextId));
 
     expressionContextRepository.delete(context);
-  }
-
-  private static String conjugationKey(String lang, String lemma) {
-    return lang + '\0' + lemma;
   }
 }

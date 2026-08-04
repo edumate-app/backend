@@ -10,6 +10,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -37,5 +40,32 @@ public class LemmaConjugationService {
       conjugation.setForms(new ArrayList<>(forms));
       lemmaConjugationRepository.save(conjugation);
     }
+  }
+
+  public Map<String, List<VerbConjugationForm>> getConjugationsByLemma(String lang, Set<String> lemmas) {
+    return lemmaConjugationRepository
+        .findByLangInAndLemmaIn(Set.of(lang), lemmas)
+        .stream()
+        .collect(Collectors.toMap(
+            LemmaConjugation::getLemma,
+            LemmaConjugation::getForms,
+            (a, b) -> a
+        ));
+  }
+
+  public Map<String, List<VerbConjugationForm>> getConjugationsByLangAndLemma(
+      Set<String> langs, Set<String> lemmas) {
+    return lemmaConjugationRepository
+        .findByLangInAndLemmaIn(langs, lemmas)
+        .stream()
+        .collect(Collectors.toMap(
+            lc -> conjugationKey(lc.getLang(), lc.getLemma()),
+            LemmaConjugation::getForms,
+            (a, b) -> a
+        ));
+  }
+
+  public static String conjugationKey(String lang, String lemma) {
+    return lang + '\0' + lemma;
   }
 }
