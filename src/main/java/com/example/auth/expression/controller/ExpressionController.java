@@ -3,6 +3,7 @@ package com.example.auth.expression.controller;
 import com.example.auth.expression.dto.*;
 import com.example.auth.expression.service.ExpressionService;
 import com.example.auth.user.entity.AppUser;
+import com.example.auth.video.service.TranscriptAnalysisService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -15,10 +16,11 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ExpressionController {
   private final ExpressionService expressionService;
+  private final TranscriptAnalysisService transcriptAnalysisService;
 
   @PostMapping("/analyze")
   public List<WordAnalyzedDto> getAnalysis(@RequestBody AnalyzeRequest request) {
-    return expressionService.getAnalysis(request);
+    return transcriptAnalysisService.getAnalysis(request);
   }
 
   @PostMapping

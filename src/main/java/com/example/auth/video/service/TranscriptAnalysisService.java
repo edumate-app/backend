@@ -1,5 +1,8 @@
 package com.example.auth.video.service;
 
+import com.example.auth.common.AfterCommit;
+import com.example.auth.expression.dto.AnalyzeRequest;
+import com.example.auth.expression.dto.VerbConjugationForm;
 import com.example.auth.expression.dto.WordAnalyzedDto;
 import com.example.auth.nlp.NlpClient;
 import com.example.auth.nlp.dto.NlpAnalyzeRequest;
@@ -17,12 +20,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -165,5 +169,76 @@ public class TranscriptAnalysisService {
 
     transcriptSegmentRepository.save(segment);
     return true;
+  }
+
+  private List<WordAnalyzedDto> mapTokensToAnalyzed(List<TranscriptToken> tokens, String lang) {
+    Set<String> lemmas = tokens.stream()
+        .map(TranscriptToken::getLemma)
+        .collect(Collectors.toSet());
+
+    Map<String, List<VerbConjugationForm>> conjugationsByLemma =
+        lemmaConjugationService.getConjugationsByLemma(lang, lemmas);
+
+    return tokens.stream()
+        .sorted(Comparator.comparing(TranscriptToken::getTokenIndex))
+        .map(t -> new WordAnalyzedDto(
+            t.getText(),
+            t.getLemma(),
+            t.getPos(),
+            t.getNumber(),
+            t.getPerson(),
+            t.getTense(),
+            t.getMood(),
+            t.getGender(),
+            conjugationsByLemma.getOrDefault(t.getLemma(), List.of())
+        ))
+        .toList();
+  }
+
+  @Transactional
+  public List<WordAnalyzedDto> getAnalysis(AnalyzeRequest request) {
+    TranscriptSegment segment = null;
+    if (request.transcriptSegmentUUID() != null) {
+      segment = transcriptSegmentRepository
+          .findByIdWithTokens(request.transcriptSegmentUUID())
+          .orElse(null);
+      if (segment != null && !segment.getTokens().isEmpty()) {
+        return mapTokensToAnalyzed(segment.getTokens(), request.lang());
+      }
+    }
+
+    List<WordAnalyzedDto> words = nlpClient.getAnalysis(
+        new NlpAnalyzeRequest(request.text(), request.lang())
+    );
+    if (words == null || words.isEmpty()) {
+      return List.of();
+    }
+
+    if (segment != null) {
+      for (int i = 0; i < words.size(); i++) {
+        WordAnalyzedDto word = words.get(i);
+        segment.addToken(TranscriptToken.builder()
+            .tokenIndex(i)
+            .text(word.text())
+            .lemma(word.lemma())
+            .pos(word.pos())
+            .person(word.person())
+            .number(word.number())
+            .tense(word.tense())
+            .mood(word.mood())
+            .gender(word.gender())
+            .build());
+        lemmaConjugationService.upsert(
+            request.lang(), word.lemma(), word.pos(), word.conjugation()
+        );
+      }
+      transcriptSegmentRepository.save(segment);
+    }
+
+    return words;
+  }
+
+  public void scheduleTranscriptAnalysis(UUID videoId) {
+    AfterCommit.run(() -> analyzeVideoAsync(videoId));
   }
 }

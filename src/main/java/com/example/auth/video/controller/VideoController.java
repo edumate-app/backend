@@ -2,6 +2,7 @@ package com.example.auth.video.controller;
 
 import com.example.auth.user.entity.AppUser;
 import com.example.auth.video.dto.*;
+import com.example.auth.video.service.TranscriptService;
 import com.example.auth.video.service.VideoService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +17,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class VideoController {
   private final VideoService videoService;
+  private final TranscriptService transcriptService;
   @PostMapping("/validation")
   public List<LanguageDto> validation(@RequestParam String url,
                                       @AuthenticationPrincipal AppUser user) {
@@ -31,7 +33,7 @@ public class VideoController {
   @GetMapping("/transcript/{videoUUID}")
   public TranscriptResponseDto getTranscript(@PathVariable UUID videoUUID,
                                              @AuthenticationPrincipal AppUser user) {
-    return videoService.getTranscript(videoUUID, user);
+    return transcriptService.getTranscript(videoUUID, user);
   }
 
   @DeleteMapping("/{videoUUID}")

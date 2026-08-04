@@ -6,22 +6,15 @@ import com.example.auth.expression.entity.ExpressionContext;
 import com.example.auth.expression.exception.ContextNotFoundException;
 import com.example.auth.expression.repository.ExpressionContextRepository;
 import com.example.auth.expression.repository.ExpressionRepository;
-import com.example.auth.nlp.NlpClient;
-import com.example.auth.nlp.dto.NlpAnalyzeRequest;
 import com.example.auth.nlp.service.LemmaConjugationService;
 import com.example.auth.user.entity.AppUser;
-import com.example.auth.video.entity.SegmentNativeTranslation;
 import com.example.auth.video.entity.TranscriptSegment;
 import com.example.auth.video.entity.TranscriptToken;
 import com.example.auth.video.entity.Video;
 import com.example.auth.video.exception.ExpressionNotFoundException;
 import com.example.auth.video.exception.NativeLanguageNotSetException;
 import com.example.auth.video.exception.TranscriptSegmentNotFoundException;
-import com.example.auth.video.exception.VideoNotFoundException;
-import com.example.auth.video.repository.SegmentNativeTranslationRepository;
-import com.example.auth.video.repository.TranscriptSegmentRepository;
-import com.example.auth.video.repository.TranscriptTokenRepository;
-import com.example.auth.video.repository.VideoRepository;
+import com.example.auth.video.service.TranscriptService;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,86 +25,15 @@ import java.util.stream.Collectors;
 @Service
 @AllArgsConstructor
 public class ExpressionService {
-  private final NlpClient nlpClient;
-  private final ExpressionRepository expressionRepository;
-  private final VideoRepository videoRepository;
-  private final ExpressionContextRepository expressionContextRepository;
   private final LemmaConjugationService lemmaConjugationService;
-  private final TranscriptTokenRepository transcriptTokenRepository;
-  private final TranscriptSegmentRepository transcriptSegmentRepository;
-  private final SegmentNativeTranslationRepository segmentNativeTranslationRepository;
+  private final TranscriptService transcriptService;
 
-  @Transactional
-  public List<WordAnalyzedDto> getAnalysis(AnalyzeRequest request) {
-    TranscriptSegment segment = null;
-    if (request.transcriptSegmentUUID() != null) {
-      segment = transcriptSegmentRepository
-          .findByIdWithTokens(request.transcriptSegmentUUID())
-          .orElse(null);
-      if (segment != null && !segment.getTokens().isEmpty()) {
-        return mapTokensToAnalyzed(segment.getTokens(), request.lang());
-      }
-    }
-
-    List<WordAnalyzedDto> words = nlpClient.getAnalysis(
-        new NlpAnalyzeRequest(request.text(), request.lang())
-    );
-    if (words == null || words.isEmpty()) {
-      return List.of();
-    }
-
-    if (segment != null) {
-      for (int i = 0; i < words.size(); i++) {
-        WordAnalyzedDto word = words.get(i);
-        segment.addToken(TranscriptToken.builder()
-            .tokenIndex(i)
-            .text(word.text())
-            .lemma(word.lemma())
-            .pos(word.pos())
-            .person(word.person())
-            .number(word.number())
-            .tense(word.tense())
-            .mood(word.mood())
-            .gender(word.gender())
-            .build());
-        lemmaConjugationService.upsert(
-            request.lang(), word.lemma(), word.pos(), word.conjugation()
-        );
-      }
-      transcriptSegmentRepository.save(segment);
-    }
-
-    return words;
-  }
-
-  private List<WordAnalyzedDto> mapTokensToAnalyzed(List<TranscriptToken> tokens, String lang) {
-    Set<String> lemmas = tokens.stream()
-        .map(TranscriptToken::getLemma)
-        .collect(Collectors.toSet());
-
-    Map<String, List<VerbConjugationForm>> conjugationsByLemma =
-        lemmaConjugationService.getConjugationsByLemma(lang, lemmas);
-
-    return tokens.stream()
-        .sorted(Comparator.comparing(TranscriptToken::getTokenIndex))
-        .map(t -> new WordAnalyzedDto(
-            t.getText(),
-            t.getLemma(),
-            t.getPos(),
-            t.getNumber(),
-            t.getPerson(),
-            t.getTense(),
-            t.getMood(),
-            t.getGender(),
-            conjugationsByLemma.getOrDefault(t.getLemma(), List.of())
-        ))
-        .toList();
-  }
+  private final ExpressionRepository expressionRepository;
+  private final ExpressionContextRepository expressionContextRepository;
 
   @Transactional
   public void saveExpressions(SaveExpressionRequest request, AppUser user) {
-    Video video = videoRepository.findByIdWithSegments(request.video_uuid())
-        .orElseThrow(() -> new VideoNotFoundException(request.video_uuid()));
+    Video video = transcriptService.requireVideoWithSegments(request.video_uuid());
 
     List<TranscriptSegment> segments = video.getTranscriptSegments();
     int contextIndex = request.contextIndex();
@@ -121,12 +43,14 @@ public class ExpressionService {
     }
 
     TranscriptSegment originSegment = segments.get(contextIndex);
+
     String lang = video.getTargetLang();
     String nativeLang = user.getNativeLang();
     if (nativeLang == null) {
       throw new NativeLanguageNotSetException();
     }
-    Map<UUID, String> nativeBySegmentId = loadNativeTexts(video.getId(), nativeLang);
+
+    Map<UUID, String> nativeBySegmentId = transcriptService.loadNativeTexts(video.getId(), nativeLang);
 
     var byLemma = request.expressions().stream()
         .collect(Collectors.groupingBy(
@@ -135,8 +59,8 @@ public class ExpressionService {
             Collectors.toList()
         ));
 
-    List<TranscriptToken> tokenHits = transcriptTokenRepository
-        .findByVideoIdAndLemmaIn(video.getId(), byLemma.keySet());
+    List<TranscriptToken> tokenHits = transcriptService.findTokensByLemmas
+        (video.getId(), byLemma.keySet());
 
     Map<String, Map<TranscriptSegment, LinkedHashSet<String>>> formsByLemmaAndSegment =
         new HashMap<>();
@@ -206,15 +130,6 @@ public class ExpressionService {
         expressionContextRepository.save(context);
       });
     });
-  }
-
-  private Map<UUID, String> loadNativeTexts(UUID videoId, String nativeLang) {
-    Map<UUID, String> result = new HashMap<>();
-    for (SegmentNativeTranslation t : segmentNativeTranslationRepository
-        .findBySegment_Video_IdAndNativeLang(videoId, nativeLang)) {
-      result.put(t.getSegment().getId(), t.getNativeText());
-    }
-    return result;
   }
 
   @Transactional(readOnly = true)
