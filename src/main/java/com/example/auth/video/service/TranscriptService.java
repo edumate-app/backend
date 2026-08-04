@@ -33,7 +33,7 @@ public class TranscriptService {
   private final UserVideoRepository userVideoRepository;
   private final TranscriptTokenRepository transcriptTokenRepository;
 
-  private static final Logger log = LoggerFactory.getLogger(VideoService.class);
+  private static final Logger log = LoggerFactory.getLogger(TranscriptService.class);
 
   public boolean attachTranscriptIfPossible(Video video, String youtubeVideoId, String nativeLang) {
     if (nativeLang == null) return false;
