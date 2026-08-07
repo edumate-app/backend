@@ -10,6 +10,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.time.Duration;
 import java.util.Optional;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -20,10 +21,9 @@ public class RedisJobStore {
   private final StringRedisTemplate redis;
   private final JsonMapper jsonMapper;
 
-  public void save(JobRecord job, Duration ttl) {
-    write(job, ttl != null ? ttl : DEFAULT_TTL);
+  public void save(JobRecord job) {
+    write(job);
   }
-
 
   public void update(JobRecord job) {
     try {
@@ -34,7 +34,7 @@ public class RedisJobStore {
     }
   }
 
-  public Optional<JobRecord> find(String jobId) {
+  public Optional<JobRecord> find(UUID jobId) {
     String json = redis.opsForValue().get(key(jobId));
     if (json == null || json.isBlank()) {
       return Optional.empty();
@@ -46,16 +46,16 @@ public class RedisJobStore {
     }
   }
 
-  private void write(JobRecord job, Duration ttl) {
+  private void write(JobRecord job) {
     try {
       String json = jsonMapper.writeValueAsString(job);
-      redis.opsForValue().set(key(job.id()), json, ttl);
+      redis.opsForValue().set(key(job.id()), json, DEFAULT_TTL);
     }catch (JacksonException e) {
       throw new IllegalStateException("Failed to serialize job " + job.id(), e);
     }
   }
 
-  private static String key(String jobId) {
+  private static String key(UUID jobId) {
     return KEY_PREFIX + jobId;
   }
 }

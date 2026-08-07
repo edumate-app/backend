@@ -35,11 +35,12 @@ public class TranscriptService {
 
   private static final Logger log = LoggerFactory.getLogger(TranscriptService.class);
 
-  public boolean attachTranscriptIfPossible(Video video, String youtubeVideoId, String nativeLang) {
+  @Transactional
+  public boolean attachTranscriptIfPossible(Video video, String nativeLang) {
     if (nativeLang == null) return false;
     try {
       NlpTranscriptRequest request = new NlpTranscriptRequest(video.getTargetLang(), nativeLang);
-      List<TranscriptSegment> segments = nlpClient.getTranscript(youtubeVideoId, request)
+      List<TranscriptSegment> segments = nlpClient.getTranscript(video.getVideoId(), request)
           .stream()
           .map(dto -> toSegmentWithTranslation(dto, nativeLang))
           .toList();

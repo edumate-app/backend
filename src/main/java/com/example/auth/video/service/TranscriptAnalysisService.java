@@ -26,6 +26,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 @Service
@@ -236,6 +237,46 @@ public class TranscriptAnalysisService {
     }
 
     return words;
+  }
+
+  public boolean hasUntokenizedSegments(UUID videoId) {
+    return !transcriptSegmentRepository.findIdsWithoutTokensByVideoId(videoId).isEmpty();
+  }
+
+  /**
+   * Synchronous analysis for import jobs so progress can be pushed over SSE.
+   * Throws if the NLP language never becomes ready.
+   */
+  public void analyzeVideoForJob(UUID videoId, String lang, BiConsumer<Integer, Integer> onProgress) {
+    List<UUID> segmentIds = transcriptSegmentRepository.findIdsWithoutTokensByVideoId(videoId);
+    if (segmentIds.isEmpty()) {
+      log.info("Transcript analysis skipped for job – all segments already tokenized for video {}", videoId);
+      onProgress.accept(0, 0);
+      return;
+    }
+
+    if (!waitUntilLanguageReady(lang)) {
+      throw new IllegalStateException("Language " + lang + " not ready for analysis");
+    }
+
+    log.info("Starting job transcript analysis for video {} ({} segments)", videoId, segmentIds.size());
+
+    TransactionTemplate tx = new TransactionTemplate(transactionManager);
+    int analyzed = 0;
+    int total = segmentIds.size();
+    onProgress.accept(0, total);
+
+    for (UUID segmentId : segmentIds) {
+      try {
+        boolean saved = Boolean.TRUE.equals(tx.execute(status -> analyzeSegment(segmentId, lang)));
+        if (saved) {
+          analyzed++;
+        }
+      } catch (Exception e) {
+        log.warn("Failed to analyze segment {} of video {}: {}", segmentId, videoId, e.getMessage());
+      }
+      onProgress.accept(analyzed, total);
+    }
   }
 
   public void scheduleTranscriptAnalysis(UUID videoId) {

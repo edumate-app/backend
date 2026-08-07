@@ -1,18 +1,20 @@
 package com.example.auth.job.record;
 
+import java.util.UUID;
+
 public record JobRecord(
-    String id,
+    UUID id,
     JobType type,
     String userId,
     JobStatus status,
     JobStep step,
     int progress,
-    String resultId,
+    UUID resultId,
     String error,
     long createdAt,      // epoch millis
     long updatedAt
 ) {
-  public static JobRecord create(String id, JobType type, String userId) {
+  public static JobRecord create(UUID id, JobType type, String userId) {
     long now = System.currentTimeMillis();
     return new JobRecord(
         id, type, userId,
@@ -26,13 +28,13 @@ public record JobRecord(
         resultId, null, createdAt, System.currentTimeMillis()
     );
   }
-  public JobRecord withResult(String resultId) {
+  public JobRecord withResult(UUID resultId) {
     return new JobRecord(
         id, type, userId, status, step, progress,
         resultId, error, createdAt, System.currentTimeMillis()
     );
   }
-  public JobRecord completed(String resultId) {
+  public JobRecord completed(UUID resultId) {
     return new JobRecord(
         id, type, userId, JobStatus.COMPLETED, JobStep.COMPLETED, 100,
         resultId, null, createdAt, System.currentTimeMillis()

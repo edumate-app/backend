@@ -9,6 +9,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -18,11 +19,12 @@ public class JobSseService {
   private static final Logger log = LoggerFactory.getLogger(JobSseService.class);
   private static final long TIMEOUT_MS = 5 * 60 * 1000L; // 5 min
 
-  // key = jobId
-  private final ConcurrentHashMap<String, CopyOnWriteArrayList<SseEmitter>> emitters =
+  // key = jobId (UUID)
+  private final ConcurrentHashMap<UUID, CopyOnWriteArrayList<SseEmitter>> emitters =
       new ConcurrentHashMap<>();
 
-  public SseEmitter subscribe(String jobId, JobStatusDto snapshot) {
+  public SseEmitter subscribe(JobStatusDto snapshot) {
+    UUID jobId = snapshot.jobId();
     SseEmitter emitter = new SseEmitter(TIMEOUT_MS);
     // based on computeIfAbsent many peoples can see same job
     emitters.computeIfAbsent(jobId, id -> new CopyOnWriteArrayList<>()).add(emitter);
@@ -47,7 +49,8 @@ public class JobSseService {
     return emitter;
   }
 
-  public void publish(String jobId, JobStatusDto dto) {
+  public void publish(JobStatusDto dto) {
+    UUID jobId = dto.jobId();
     List<SseEmitter> list = emitters.get(jobId);
     if (list == null || list.isEmpty()) {
       return;
@@ -68,7 +71,7 @@ public class JobSseService {
     }
   }
 
-  public void complete(String jobId) {
+  public void complete(UUID jobId) {
     List<SseEmitter> list = emitters.remove(jobId);
     if (list == null) {
       return;
@@ -82,7 +85,7 @@ public class JobSseService {
     }
   }
 
-  private void unregister(String jobId, SseEmitter emitter) {
+  private void unregister(UUID jobId, SseEmitter emitter) {
     List<SseEmitter> list = emitters.get(jobId);
     if (list == null) {
       return;

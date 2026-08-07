@@ -7,7 +7,7 @@ import com.example.auth.job.record.JobType;
 import java.util.UUID;
 
 public record JobStatusDto(
-    UUID job_id,
+    UUID jobId,
     JobType type,
     JobStatus status,
     String step,
@@ -17,12 +17,12 @@ public record JobStatusDto(
 ) {
   public static JobStatusDto fromVideo(JobRecord job) {
     return new JobStatusDto(
-        UUID.fromString(job.id()),
+        job.id(),
         JobType.VIDEO_IMPORT,
         job.status(),
         job.step().name(),
         job.progress(),
-        job.resultId() == null ? null : UUID.fromString(job.resultId()),
+        job.resultId() == null ? null : job.resultId(),
         job.error()
     );
   }

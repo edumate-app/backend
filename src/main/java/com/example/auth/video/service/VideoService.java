@@ -1,37 +1,35 @@
 package com.example.auth.video.service;
 
+import com.example.auth.job.JobNotFoundException;
+import com.example.auth.job.RedisJobStore;
+import com.example.auth.job.record.JobRecord;
+import com.example.auth.job.record.JobType;
 import com.example.auth.nlp.NlpClient;
 import com.example.auth.nlp.dto.NlpLanguageDto;
-import com.example.auth.nlp.dto.VideoInfo;
 import com.example.auth.video.dto.*;
-import com.example.auth.video.entity.UserVideo;
 import com.example.auth.video.exception.InvalidVideoUrlException;
 import com.example.auth.video.exception.VideoNotFoundException;
 import com.example.auth.user.entity.AppUser;
 import com.example.auth.video.entity.Video;
 import com.example.auth.video.repository.UserVideoRepository;
-import com.example.auth.video.repository.VideoRepository;
-import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Service
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class VideoService {
   private final NlpClient nlpClient;
 
-  private final TranscriptAnalysisService transcriptAnalysisService;
-  private final TranscriptService transcriptService;
-
-  private final VideoRepository videoRepository;
   private final UserVideoRepository userVideoRepository;
+  private final RedisJobStore redisJobStore;
+  private final VideoImportRunner videoImportRunner;
   private static final Logger log = LoggerFactory.getLogger(VideoService.class);
 
   @Transactional
@@ -63,42 +61,29 @@ public class VideoService {
   @Transactional
   public ImportResponse importVideo(String url, String targetLang, AppUser user) {
     String videoId = extractVideoId(url);
-    // boolean[] instead of boolean to avoid "Variable used in lambda expression should be final or effectively final"
-    boolean[] createdWithSegments = {false};
 
-    Video video = videoRepository.findByVideoIdAndTargetLang(videoId, targetLang)
-        .orElseGet(() -> {
-          VideoInfo info = nlpClient.getVideoInfo(videoId);
-          Video v = Video.builder()
-              .targetLang(targetLang)
-              .title(info.title())
-              .author(info.author())
-              .videoId(videoId)
-              .duration(info.duration())
-              .build();
+    UUID jobId = UUID.randomUUID();
+    JobRecord job = JobRecord.create(jobId, JobType.VIDEO_IMPORT, user.getId().toString());
+    redisJobStore.save(job);
 
-          createdWithSegments[0] = transcriptService.attachTranscriptIfPossible(
-              v, videoId, user.getNativeLang()
-          );
+    videoImportRunner.processAsync(
+        jobId,
+        videoId,
+        targetLang,
+        user.getId(),
+        user.getNativeLang()
+    );
 
-          return videoRepository.save(v);
-        });
+    return new ImportResponse(jobId);
+  }
 
-    userVideoRepository.findByUserAndVideo_Id(user, video.getId())
-        .orElseGet(() -> userVideoRepository.save(
-            UserVideo.builder()
-                .user(user)
-                .video(video)
-                .lastOpenedAt(Instant.now())
-                .lastPositionSeconds(0)
-                .build()
-        ));
-
-    if (createdWithSegments[0]) {
-      transcriptAnalysisService.scheduleTranscriptAnalysis(video.getId());
+  public JobRecord requireOwnedJob(UUID jobId, AppUser user) {
+    JobRecord job = redisJobStore.find(jobId)
+        .orElseThrow(() -> new JobNotFoundException(jobId));
+    if (!job.userId().equals(user.getId().toString())) {
+      throw new JobNotFoundException(jobId);
     }
-
-    return new ImportResponse(video.getId());
+    return job;
   }
 
   public List<VideoDto> getVideos(AppUser user) {

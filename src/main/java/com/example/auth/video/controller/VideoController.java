@@ -1,13 +1,18 @@
 package com.example.auth.video.controller;
 
+import com.example.auth.job.JobSseService;
+import com.example.auth.job.dto.JobStatusDto;
+import com.example.auth.job.record.JobRecord;
 import com.example.auth.user.entity.AppUser;
 import com.example.auth.video.dto.*;
 import com.example.auth.video.service.TranscriptService;
 import com.example.auth.video.service.VideoService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 import java.util.UUID;
@@ -18,6 +23,7 @@ import java.util.UUID;
 public class VideoController {
   private final VideoService videoService;
   private final TranscriptService transcriptService;
+  private final JobSseService jobSseService;
   @PostMapping("/validation")
   public List<LanguageDto> validation(@RequestParam String url,
                                       @AuthenticationPrincipal AppUser user) {
@@ -28,6 +34,13 @@ public class VideoController {
   public ImportResponse addVideo(@RequestBody ImportRequest request,
                                  @AuthenticationPrincipal AppUser user) {
     return videoService.importVideo(request.url(), request.targetLang() , user);
+  }
+
+  @GetMapping(value = "/import/{jobId}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+  public SseEmitter importEvents(@PathVariable UUID jobId,
+                                 @AuthenticationPrincipal AppUser user) {
+    JobRecord job = videoService.requireOwnedJob(jobId, user);
+    return jobSseService.subscribe(JobStatusDto.fromVideo(job));
   }
 
   @GetMapping("/transcript/{videoUUID}")
