@@ -42,19 +42,20 @@ public class VideoImportRunner {
   // Avoid passing the AppUser to the function
   @Async
   public void processAsync(
-      UUID jobId,
+      String jobId,
       String videoId,
       String targetLang,
       UUID userId,
       String nativeLang
   ) {
     try {
-      publish(jobId, JobStep.QUEUED, 5);
+      publish(jobId, JobStep.QUEUED, 2);
 
-      AppUser user = userRepository.findById(userId)
-          .orElseThrow(() -> new IllegalStateException("User not found: " + userId));
+      if (!userRepository.existsById(userId)) {
+        throw new IllegalStateException("User not found: " + userId);
+      }
 
-      publish(jobId, JobStep.FETCH_VIDEO_INFO, 15);
+      publish(jobId, JobStep.FETCH_VIDEO_INFO, 5);
 
       Video video = videoRepository.findByVideoIdAndTargetLang(videoId, targetLang)
           .orElse(null);
@@ -62,7 +63,7 @@ public class VideoImportRunner {
       boolean shouldAnalyze = false;
 
       if (video == null) {
-        publish(jobId, JobStep.FETCH_TRANSCRIPT, 40);
+        publish(jobId, JobStep.FETCH_TRANSCRIPT, 12);
         VideoInfo info = nlpClient.getVideoInfo(videoId);
         video = Video.builder()
             .targetLang(targetLang)
@@ -79,41 +80,65 @@ public class VideoImportRunner {
         shouldAnalyze = transcriptAnalysisService.hasUntokenizedSegments(video.getId());
       }
 
-      publish(jobId, JobStep.SAVE_VIDEO, 55, video.getId());
       Video finalVideo = video;
-      userVideoRepository.findByUserAndVideo_Id(user, video.getId())
-          .orElseGet(() -> userVideoRepository.save(
-              UserVideo.builder()
-                  .user(user)
-                  .video(finalVideo)
-                  .lastOpenedAt(Instant.now())
-                  .lastPositionSeconds(0)
-                  .build()
-          ));
+
+      jobStore.find(jobId).ifPresent(current -> {
+        if (finalVideo.getTitle() != null && !finalVideo.getTitle().isBlank()) {
+          JobRecord withTitle = current.withTitle(finalVideo.getTitle());
+          jobStore.update(withTitle);
+          jobSseService.publish(JobStatusDto.fromVideo(withTitle));
+        }
+      });
+
+      publish(jobId, JobStep.SAVE_VIDEO, 16, finalVideo.getId());
+      // Link every user watching this job (initiator + concurrent joins).
+      ensureUserVideosForJob(jobId, finalVideo);
 
       if (shouldAnalyze) {
-        publish(jobId, JobStep.ENSURE_LANGUAGE, 65, video.getId());
+        publish(jobId, JobStep.ENSURE_LANGUAGE, 20, finalVideo.getId());
         transcriptAnalysisService.analyzeVideoForJob(
-            video.getId(),
-            video.getTargetLang(),
+            finalVideo.getId(),
+            finalVideo.getTargetLang(),
             (done, total) -> {
-              int progress = total == 0 ? 95 : 70 + (25 * done / total);
-              publish(jobId, JobStep.TOKENIZE_SEGMENTS, Math.min(progress, 95), finalVideo.getId());
+              int progress = total == 0 ? 98 : 20 + (78 * done / total);
+              publish(jobId, JobStep.TOKENIZE_SEGMENTS, Math.min(progress, 98), finalVideo.getId());
             }
         );
       }
 
-      complete(jobId, video.getId());
+      // Catch users who joined during tokenization after the first link pass.
+      ensureUserVideosForJob(jobId, finalVideo);
+      complete(jobId, finalVideo.getId());
     } catch (Exception e) {
       log.error("Import job {} failed: {}", jobId, e.getMessage(), e);
       fail(jobId, e.getMessage() != null ? e.getMessage() : "Import failed");
     }
   }
 
-  private void publish(UUID jobId, JobStep step, int progress) {
+  public void ensureUserVideosForJob(String jobId, Video video) {
+    for (UUID linkedUserId : jobStore.getUserIds(jobId)) {
+      userRepository.findById(linkedUserId).ifPresent(linkedUser ->
+          ensureUserVideo(linkedUser, video)
+      );
+    }
+  }
+
+  public void ensureUserVideo(AppUser user, Video video) {
+    userVideoRepository.findByUserAndVideo_Id(user, video.getId())
+        .orElseGet(() -> userVideoRepository.save(
+            UserVideo.builder()
+                .user(user)
+                .video(video)
+                .lastOpenedAt(Instant.now())
+                .lastPositionSeconds(0)
+                .build()
+        ));
+  }
+
+  private void publish(String jobId, JobStep step, int progress) {
     publish(jobId, step, progress, null);
   }
-  private void publish(UUID jobId, JobStep step, int progress, UUID resultId) {
+  private void publish(String jobId, JobStep step, int progress, UUID resultId) {
     JobRecord current = jobStore.find(jobId)
         .orElseThrow(() -> new IllegalStateException("Job missing: " + jobId));
     JobRecord updated = current.running(step, progress);
@@ -124,7 +149,7 @@ public class VideoImportRunner {
     jobSseService.publish(JobStatusDto.fromVideo(updated));
   }
 
-  private void complete(UUID jobId, UUID videoUuid) {
+  private void complete(String jobId, UUID videoUuid) {
     JobRecord current = jobStore.find(jobId)
         .orElseThrow(() -> new IllegalStateException("Job missing: " + jobId));
     JobRecord done = current.completed(videoUuid);
@@ -133,7 +158,7 @@ public class VideoImportRunner {
     jobSseService.complete(jobId);
   }
 
-  private void fail(UUID jobId, String error) {
+  private void fail(String jobId, String error) {
     jobStore.find(jobId).ifPresent(current -> {
       JobRecord failed = current.failed(error);
       jobStore.update(failed);

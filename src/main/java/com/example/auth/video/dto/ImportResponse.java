@@ -1,6 +1,5 @@
 package com.example.auth.video.dto;
 
-import java.util.UUID;
 
-public record ImportResponse(UUID jobId) {
+public record ImportResponse(String jobId) {
 }

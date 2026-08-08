@@ -3,47 +3,55 @@ package com.example.auth.job.record;
 import java.util.UUID;
 
 public record JobRecord(
-    UUID id,
+    String id,
     JobType type,
-    String userId,
+//    String userId,
     JobStatus status,
     JobStep step,
     int progress,
     UUID resultId,
     String error,
+    String title,
     long createdAt,      // epoch millis
     long updatedAt
 ) {
-  public static JobRecord create(UUID id, JobType type, String userId) {
+  public static JobRecord create(String id, JobType type) {
     long now = System.currentTimeMillis();
     return new JobRecord(
-        id, type, userId,
+        id, type,
         JobStatus.PENDING, JobStep.QUEUED, 0,
-        null, null, now, now
+        null, null, null, now, now
     );
   }
   public JobRecord running(JobStep step, int progress) {
     return new JobRecord(
-        id, type, userId, JobStatus.RUNNING, step, progress,
-        resultId, null, createdAt, System.currentTimeMillis()
+        id, type, JobStatus.RUNNING, step, progress,
+        resultId, null, title, createdAt, System.currentTimeMillis()
     );
   }
   public JobRecord withResult(UUID resultId) {
     return new JobRecord(
-        id, type, userId, status, step, progress,
-        resultId, error, createdAt, System.currentTimeMillis()
+        id, type, status, step, progress,
+        resultId, error, title, createdAt, System.currentTimeMillis()
+    );
+  }
+
+  public JobRecord withTitle(String title) {
+    return new JobRecord(
+        id, type, status, step, progress,
+        resultId, error, title, createdAt, System.currentTimeMillis()
     );
   }
   public JobRecord completed(UUID resultId) {
     return new JobRecord(
-        id, type, userId, JobStatus.COMPLETED, JobStep.COMPLETED, 100,
-        resultId, null, createdAt, System.currentTimeMillis()
+        id, type, JobStatus.COMPLETED, JobStep.COMPLETED, 100,
+        resultId, null, title, createdAt, System.currentTimeMillis()
     );
   }
   public JobRecord failed(String error) {
     return new JobRecord(
-        id, type, userId, JobStatus.FAILED, step, progress,
-        resultId, error, createdAt, System.currentTimeMillis()
+        id, type, JobStatus.FAILED, step, progress,
+        resultId, error, title, createdAt, System.currentTimeMillis()
     );
   }
 }

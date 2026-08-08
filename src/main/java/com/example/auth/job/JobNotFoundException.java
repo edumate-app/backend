@@ -6,7 +6,7 @@ import org.springframework.http.HttpStatus;
 import java.util.UUID;
 
 public class JobNotFoundException extends ApplicationException {
-  public JobNotFoundException(UUID jobId) {
+  public JobNotFoundException(String jobId) {
     super(
         "JOB_NOT_FOUND",
         "Job not found: " + jobId,

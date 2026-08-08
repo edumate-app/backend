@@ -30,6 +30,11 @@ public class VideoController {
     return videoService.getAvailableLang(url, user);
   }
 
+  @GetMapping("/import/jobs")
+  public List<JobStatusDto> listImportJobs(@AuthenticationPrincipal AppUser user) {
+    return videoService.listImportJobs(user);
+  }
+
   @PostMapping("/import")
   public ImportResponse addVideo(@RequestBody ImportRequest request,
                                  @AuthenticationPrincipal AppUser user) {
@@ -37,7 +42,7 @@ public class VideoController {
   }
 
   @GetMapping(value = "/import/{jobId}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-  public SseEmitter importEvents(@PathVariable UUID jobId,
+  public SseEmitter importEvents(@PathVariable String jobId,
                                  @AuthenticationPrincipal AppUser user) {
     JobRecord job = videoService.requireOwnedJob(jobId, user);
     return jobSseService.subscribe(JobStatusDto.fromVideo(job));

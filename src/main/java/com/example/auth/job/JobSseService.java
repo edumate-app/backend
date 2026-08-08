@@ -19,12 +19,12 @@ public class JobSseService {
   private static final Logger log = LoggerFactory.getLogger(JobSseService.class);
   private static final long TIMEOUT_MS = 5 * 60 * 1000L; // 5 min
 
-  // key = jobId (UUID)
-  private final ConcurrentHashMap<UUID, CopyOnWriteArrayList<SseEmitter>> emitters =
+  // key = jobId (String)
+  private final ConcurrentHashMap<String, CopyOnWriteArrayList<SseEmitter>> emitters =
       new ConcurrentHashMap<>();
 
   public SseEmitter subscribe(JobStatusDto snapshot) {
-    UUID jobId = snapshot.jobId();
+    String jobId = snapshot.jobId();
     SseEmitter emitter = new SseEmitter(TIMEOUT_MS);
     // based on computeIfAbsent many peoples can see same job
     emitters.computeIfAbsent(jobId, id -> new CopyOnWriteArrayList<>()).add(emitter);
@@ -50,7 +50,7 @@ public class JobSseService {
   }
 
   public void publish(JobStatusDto dto) {
-    UUID jobId = dto.jobId();
+    String jobId = dto.jobId();
     List<SseEmitter> list = emitters.get(jobId);
     if (list == null || list.isEmpty()) {
       return;
@@ -71,7 +71,7 @@ public class JobSseService {
     }
   }
 
-  public void complete(UUID jobId) {
+  public void complete(String jobId) {
     List<SseEmitter> list = emitters.remove(jobId);
     if (list == null) {
       return;
@@ -85,7 +85,7 @@ public class JobSseService {
     }
   }
 
-  private void unregister(UUID jobId, SseEmitter emitter) {
+  private void unregister(String jobId, SseEmitter emitter) {
     List<SseEmitter> list = emitters.get(jobId);
     if (list == null) {
       return;

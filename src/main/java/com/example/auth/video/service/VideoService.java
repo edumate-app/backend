@@ -2,7 +2,9 @@ package com.example.auth.video.service;
 
 import com.example.auth.job.JobNotFoundException;
 import com.example.auth.job.RedisJobStore;
+import com.example.auth.job.dto.JobStatusDto;
 import com.example.auth.job.record.JobRecord;
+import com.example.auth.job.record.JobStatus;
 import com.example.auth.job.record.JobType;
 import com.example.auth.nlp.NlpClient;
 import com.example.auth.nlp.dto.NlpLanguageDto;
@@ -12,6 +14,7 @@ import com.example.auth.video.exception.VideoNotFoundException;
 import com.example.auth.user.entity.AppUser;
 import com.example.auth.video.entity.Video;
 import com.example.auth.video.repository.UserVideoRepository;
+import com.example.auth.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,6 +31,7 @@ public class VideoService {
   private final NlpClient nlpClient;
 
   private final UserVideoRepository userVideoRepository;
+  private final VideoRepository videoRepository;
   private final RedisJobStore redisJobStore;
   private final VideoImportRunner videoImportRunner;
   private static final Logger log = LoggerFactory.getLogger(VideoService.class);
@@ -62,9 +66,23 @@ public class VideoService {
   public ImportResponse importVideo(String url, String targetLang, AppUser user) {
     String videoId = extractVideoId(url);
 
-    UUID jobId = UUID.randomUUID();
-    JobRecord job = JobRecord.create(jobId, JobType.VIDEO_IMPORT, user.getId().toString());
-    redisJobStore.save(job);
+    String jobId = videoId + ":" + targetLang.toLowerCase(Locale.ROOT);
+
+    Optional<JobRecord> existing = redisJobStore.find(jobId);
+
+    if (existing.isPresent()) {
+      JobStatus status = existing.get().status();
+      if (status == JobStatus.PENDING || status == JobStatus.RUNNING) {
+        redisJobStore.addUser(jobId, user.getId());
+        // Late join: Video may already exist after SAVE_VIDEO — link immediately.
+        videoRepository.findByVideoIdAndTargetLang(videoId, targetLang)
+            .ifPresent(video -> videoImportRunner.ensureUserVideo(user, video));
+        return new ImportResponse(jobId);
+      }
+    }
+
+    JobRecord job = JobRecord.create(jobId, JobType.VIDEO_IMPORT);
+    redisJobStore.save(job, user.getId());
 
     videoImportRunner.processAsync(
         jobId,
@@ -77,13 +95,16 @@ public class VideoService {
     return new ImportResponse(jobId);
   }
 
-  public JobRecord requireOwnedJob(UUID jobId, AppUser user) {
-    JobRecord job = redisJobStore.find(jobId)
+  public List<JobStatusDto> listImportJobs(AppUser user) {
+    return redisJobStore.findAllByUser(user.getId()).stream()
+        .filter(job -> job.type() == JobType.VIDEO_IMPORT)
+        .map(JobStatusDto::fromVideo)
+        .toList();
+  }
+
+  public JobRecord requireOwnedJob(String jobId, AppUser user) {
+    return redisJobStore.find(jobId, user.getId())
         .orElseThrow(() -> new JobNotFoundException(jobId));
-    if (!job.userId().equals(user.getId().toString())) {
-      throw new JobNotFoundException(jobId);
-    }
-    return job;
   }
 
   public List<VideoDto> getVideos(AppUser user) {

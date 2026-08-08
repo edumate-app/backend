@@ -7,13 +7,14 @@ import com.example.auth.job.record.JobType;
 import java.util.UUID;
 
 public record JobStatusDto(
-    UUID jobId,
+    String jobId,
     JobType type,
     JobStatus status,
     String step,
     int progress,
     UUID video_uuid,
-    String error
+    String error,
+    String title
 ) {
   public static JobStatusDto fromVideo(JobRecord job) {
     return new JobStatusDto(
@@ -23,7 +24,8 @@ public record JobStatusDto(
         job.step().name(),
         job.progress(),
         job.resultId() == null ? null : job.resultId(),
-        job.error()
+        job.error(),
+        job.title()
     );
   }
 }
