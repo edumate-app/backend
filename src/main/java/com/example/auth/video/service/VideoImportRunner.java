@@ -72,7 +72,7 @@ public class VideoImportRunner {
             .duration(info.duration())
             .build();
 
-        shouldAnalyze = transcriptService.attachTranscriptIfPossible(video, user.getNativeLang());
+        shouldAnalyze = transcriptService.attachTranscriptIfPossible(video, nativeLang);
         videoRepository.save(video);
       } else {
         // TODO: Refine this to analyze only missing segments instead of all segments.
